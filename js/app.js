@@ -1,22 +1,606 @@
-window.Store={
-state:{lang:localStorage.getItem('sf_lang')||'en',theme:localStorage.getItem('sf_theme')||'light',user:null,profile:null,settings:{},products:[],categories:[],types:[],textbar:[],notifications:[]},
-esc:s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])),escAttr:s=>String(s??'').replace(/["&<>]/g,m=>({'"':'&quot;','&':'&amp;','<':'&lt;','>':'&gt;'}[m])),
-view:h=>document.getElementById('view').innerHTML=h,
-alert(msg,type='ok'){document.getElementById('alert-host').innerHTML=`<div class="alert ${type}">${this.esc(msg)}</div>`;setTimeout(()=>{document.getElementById('alert-host').innerHTML=''},4500)},
-modal(h){document.getElementById('modal-body').innerHTML=h;document.getElementById('modal').classList.remove('hidden')},
-async loadSettings(){const {data,error}=await db.from('site_settings').select('*').eq('id',1).single();if(error)throw error;this.state.settings=data||{}},
-applySettings(){let s=this.state.settings;document.documentElement.lang=this.state.lang;document.documentElement.dir=this.state.lang==='ar'?'rtl':'ltr';document.body.classList.toggle('dark',this.state.theme==='dark');document.documentElement.style.setProperty('--primary',s.theme_color||'#0066cc');let name=localize(s,'site_name')||'StoreFront',desc=localize(s,'site_description')||'';document.getElementById('site-title').textContent=name;document.getElementById('site-subtitle').textContent=desc;document.getElementById('footer-name').textContent=name;document.title=name;document.querySelectorAll('[data-lang]').forEach(b=>b.classList.toggle('active',b.dataset.lang===this.state.lang));document.querySelectorAll('[data-theme]').forEach(b=>b.classList.toggle('active',b.dataset.theme===this.state.theme));document.querySelectorAll('[data-i18n]').forEach(x=>x.textContent=t(x.dataset.i18n));let social=[];if(s.show_social_icons&&s.instagram_url)social.push(`<a class="btn" target="_blank" rel="noopener" href="${this.escAttr(s.instagram_url)}">Instagram</a>`);if(s.show_social_icons&&s.whatsapp_url)social.push(`<a class="btn" target="_blank" rel="noopener" href="${this.escAttr(s.whatsapp_url)}">WhatsApp</a>`);document.getElementById('social-links').innerHTML=social.join(' ')},
-renderNav(){let p=this.state.profile,u=this.state.user,a=[['home',t('home')]];if(u)a.push(['cart',`${t('cart')} (${Cart.count()})`],['orders',t('orders')],['account',`${t('account')} (${this.esc(p?.username||'')})`]);if(p?.role==='admin')a.push(['admin',t('admin')]);if(!u)a.push(['login',t('login')],['register',t('register')]);else a.push(['logout',t('logout')]);document.getElementById('main-nav').innerHTML=a.map(([k,n])=>`<a href="#${k}" data-route="${k}" class="btn ${location.hash.slice(1)===k?'active':''}">${n}</a>`).join('');document.querySelectorAll('[data-route]').forEach(x=>x.onclick=e=>{e.preventDefault();this.go(x.dataset.route)})},
-go(r){if(r==='logout'){Auth.logout().then(()=>{this.go('home');this.refreshShell()});return}location.hash=r;this.route()},
-async notifications(){if(!this.state.user){document.getElementById('notify-btn').classList.add('hidden');return}document.getElementById('notify-btn').classList.remove('hidden');const {data}=await db.from('notifications').select('*').eq('user_id',this.state.user.id).order('created_at',{ascending:false}).limit(30);this.state.notifications=data||[];let unread=this.state.notifications.filter(n=>!n.read_at&&!n.is_read).length,b=document.getElementById('notify-badge');b.textContent=unread>99?'99+':unread;b.classList.toggle('hidden',!unread);document.getElementById('notify-list').innerHTML=this.state.notifications.map(n=>`<div class="notify-item ${(!n.read_at&&!n.is_read)?'unread':''}"><strong>${this.esc(localize(n,'title'))}</strong><div>${this.esc(localize(n,'message'))}</div><small class="muted">${new Date(n.created_at).toLocaleString()}</small></div>`).join('')||'<div class="notify-item muted">No notifications yet.</div>'},
-async route(){let r=(location.hash||'#home').slice(1);this.renderNav();if(r==='home')return Products.renderHome();if(r==='cart')return Cart.render();if(r==='login')return this.loginView();if(r==='register')return this.registerView();if(r==='account')return this.accountView();if(r==='orders')return this.ordersView();if(r==='admin')return Admin.render();return Products.renderHome()},
-loginView(){if(this.state.user)return this.go('account');this.view(`<form id="login-form" class="panel"><h2>${t('login')}</h2><div class="form-group"><label>Email</label><input name="email" type="email" required></div><div class="form-group"><label>Password</label><input name="password" type="password" required></div><button class="btn primary">${t('login')}</button></form>`);document.getElementById('login-form').onsubmit=async e=>{e.preventDefault();let f=new FormData(e.target);try{await Auth.login(f.get('email'),f.get('password'));await this.refreshShell();this.go('home')}catch(x){this.alert(x.message,'err')}}},
-registerView(){this.view(`<form id="reg-form" class="panel"><h2>${t('register')}</h2><div class="bilingual"><div class="form-group"><label>Username</label><input name="username" required></div><div class="form-group"><label>Email</label><input name="email" type="email" required></div></div><div class="bilingual"><div class="form-group"><label>First Name</label><input name="first_name"></div><div class="form-group"><label>Last Name</label><input name="last_name"></div></div><div class="form-group"><label>Password</label><input name="password" type="password" minlength="8" required></div><button class="btn primary">${t('register')}</button></form>`);document.getElementById('reg-form').onsubmit=async e=>{e.preventDefault();try{await Auth.register(new FormData(e.target));this.alert('Registration submitted. Check your email if confirmation is enabled.');this.go('login')}catch(x){this.alert(x.message,'err')}}},
-accountView(){if(!this.state.user)return this.go('login');let p=this.state.profile||{};this.view(`<form id="account-form" class="panel"><h2>${t('account')}</h2><div class="bilingual"><div class="form-group"><label>Username</label><input name="username" value="${this.escAttr(p.username||'')}" required></div><div class="form-group"><label>Email</label><input value="${this.escAttr(this.state.user.email||'')}" disabled></div></div><div class="bilingual"><div class="form-group"><label>First Name</label><input name="first_name" value="${this.escAttr(p.first_name||'')}"></div><div class="form-group"><label>Last Name</label><input name="last_name" value="${this.escAttr(p.last_name||'')}"></div></div><div class="form-group"><label>Mobile Number</label><input name="mobile_number" value="${this.escAttr(p.mobile_number||'')}"></div><div class="form-group"><label>Delivery Address</label><textarea name="delivery_address">${this.esc(p.delivery_address||'')}</textarea></div><div class="form-group"><label>New Password (leave blank to keep existing)</label><input name="new_password" type="password"></div><button class="btn primary">Save Changes</button></form>`);document.getElementById('account-form').onsubmit=async e=>{e.preventDefault();try{await Auth.updateProfile(new FormData(e.target));this.alert('Account updated.');this.renderNav()}catch(x){this.alert(x.message,'err')}}},
-async ordersView(){if(!this.state.user)return this.go('login');let {data,error}=await db.from('orders').select('*,order_items(*)').eq('user_id',this.state.user.id).order('created_at',{ascending:false});if(error)return this.alert(error.message,'err');this.view(`<h2>${t('orders')} (${data.length})</h2>${data.map(o=>`<div class="card"><strong>Order #${o.order_number}</strong><div>${new Date(o.created_at).toLocaleString()}</div><div>Status: ${o.status}</div><div>Total: ${Number(o.total_usd).toFixed(2)} USD</div><ul>${(o.order_items||[]).map(i=>`<li>${this.esc(i.product_title)} × ${i.quantity}</li>`).join('')}</ul></div>`).join('')||'<div class="card">You have not placed any orders yet.</div>'}`)},
-async footer(){const {data}=await db.from('pages').select('*').eq('enabled',true);document.getElementById('footer-links').innerHTML=(data||[]).map(p=>`<a href="#" class="btn footer-page" data-id="${p.id}">${this.esc(localize(p,'title'))}</a>`).join('');document.querySelectorAll('.footer-page').forEach(a=>a.onclick=e=>{e.preventDefault();let p=(data||[]).find(x=>String(x.id)===a.dataset.id);this.modal(`<h2>${this.esc(localize(p,'title'))}</h2><div>${p.content||''}</div>`)})},
-async refreshShell(){await Auth.refresh();this.renderNav();await this.notifications()},
-async start(){document.getElementById('year').textContent=new Date().getFullYear();await this.loadSettings();this.applySettings();await Auth.refresh();await Products.load();await this.footer();await this.notifications();this.renderNav();this.route();
- document.querySelectorAll('[data-lang]').forEach(b=>b.onclick=()=>{this.state.lang=b.dataset.lang;localStorage.setItem('sf_lang',b.dataset.lang);this.applySettings();this.footer();this.route()});document.querySelectorAll('[data-theme]').forEach(b=>b.onclick=()=>{this.state.theme=b.dataset.theme;localStorage.setItem('sf_theme',b.dataset.theme);this.applySettings()});document.getElementById('modal-close').onclick=()=>document.getElementById('modal').classList.add('hidden');document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')e.currentTarget.classList.add('hidden')};document.getElementById('notify-btn').onclick=()=>document.getElementById('notify-panel').classList.toggle('hidden');document.getElementById('notify-close').onclick=()=>document.getElementById('notify-panel').classList.add('hidden');window.addEventListener('hashchange',()=>this.route());db.auth.onAuthStateChange(()=>setTimeout(()=>this.refreshShell(),0));
-}};
-Store.start().catch(e=>{console.error(e);Store.alert(e.message||String(e),'err')});
+window.Store = {
+  state: {
+    lang: localStorage.getItem('sf_lang') || 'en',
+    theme: localStorage.getItem('sf_theme') || 'light',
+    user: null,
+    profile: null,
+    settings: {},
+    products: [],
+    categories: [],
+    types: [],
+    textbar: [],
+    notifications: []
+  },
+
+  esc(value) {
+    return String(value ?? '').replace(/[&<>"']/g, m => ({
+      '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+    }[m]));
+  },
+
+  escAttr(value) {
+    return String(value ?? '').replace(/["&<>]/g, m => ({
+      '"': '&quot;', '&': '&amp;', '<': '&lt;', '>': '&gt;'
+    }[m]));
+  },
+
+  view(html) {
+    const view = document.getElementById('view');
+    if (view) view.innerHTML = html;
+  },
+
+  alert(message, type = 'ok') {
+    const host = document.getElementById('alert-host');
+    if (!host) return;
+    host.innerHTML = `<div class="alert ${type}">${this.esc(message)}</div>`;
+  },
+
+  clearAlert() {
+    const host = document.getElementById('alert-host');
+    if (host) host.innerHTML = '';
+  },
+
+  modal(html) {
+    const body = document.getElementById('modal-body');
+    const modal = document.getElementById('modal');
+    if (!body || !modal) return;
+    body.innerHTML = html;
+    modal.classList.remove('hidden');
+  },
+
+  applyBasicUI() {
+    document.documentElement.lang = this.state.lang;
+    document.documentElement.dir = this.state.lang === 'ar' ? 'rtl' : 'ltr';
+    document.body.classList.toggle('dark', this.state.theme === 'dark');
+
+    document.querySelectorAll('[data-lang]').forEach(b => {
+      b.classList.toggle('active', b.dataset.lang === this.state.lang);
+    });
+
+    document.querySelectorAll('[data-theme]').forEach(b => {
+      b.classList.toggle('active', b.dataset.theme === this.state.theme);
+    });
+
+    document.querySelectorAll('[data-i18n]').forEach(el => {
+      el.textContent = t(el.dataset.i18n);
+    });
+  },
+
+  wireStaticControls() {
+    document.querySelectorAll('[data-lang]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        this.state.lang = btn.dataset.lang;
+        localStorage.setItem('sf_lang', this.state.lang);
+        this.applyBasicUI();
+        this.applySettings();
+        this.renderNav();
+        await this.footer();
+        await this.route();
+      });
+    });
+
+    document.querySelectorAll('[data-theme]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        this.state.theme = btn.dataset.theme;
+        localStorage.setItem('sf_theme', this.state.theme);
+        this.applyBasicUI();
+        this.applySettings();
+      });
+    });
+
+    document.getElementById('modal-close')?.addEventListener('click', () => {
+      document.getElementById('modal')?.classList.add('hidden');
+    });
+
+    document.getElementById('modal')?.addEventListener('click', event => {
+      if (event.target.id === 'modal') {
+        event.currentTarget.classList.add('hidden');
+      }
+    });
+
+    document.getElementById('notify-btn')?.addEventListener('click', () => {
+      document.getElementById('notify-panel')?.classList.toggle('hidden');
+    });
+
+    document.getElementById('notify-close')?.addEventListener('click', () => {
+      document.getElementById('notify-panel')?.classList.add('hidden');
+    });
+
+    window.addEventListener('hashchange', () => this.route());
+  },
+
+  async loadSettings() {
+    try {
+      const { data, error } = await db
+        .from('site_settings')
+        .select('*')
+        .eq('id', 1)
+        .single();
+
+      if (error) throw error;
+      this.state.settings = data || {};
+      return true;
+    } catch (e) {
+      console.error('Site settings load failed:', e);
+      this.state.settings = {};
+      this.alert('StoreFront loaded, but site settings could not be read: ' + (e.message || e), 'err');
+      return false;
+    }
+  },
+
+  applySettings() {
+    this.applyBasicUI();
+
+    const s = this.state.settings || {};
+    document.documentElement.style.setProperty('--primary', s.theme_color || '#0066cc');
+
+    const name = localize(s, 'site_name') || 'StoreFront';
+    const description = localize(s, 'site_description') || '';
+
+    const title = document.getElementById('site-title');
+    const subtitle = document.getElementById('site-subtitle');
+    const footerName = document.getElementById('footer-name');
+
+    if (title) title.textContent = name;
+    if (subtitle) subtitle.textContent = description;
+    if (footerName) footerName.textContent = name;
+    document.title = name;
+
+    const social = [];
+    if (s.show_social_icons && s.instagram_url) {
+      social.push(`<a class="btn" target="_blank" rel="noopener" href="${this.escAttr(s.instagram_url)}">Instagram</a>`);
+    }
+    if (s.show_social_icons && s.whatsapp_url) {
+      social.push(`<a class="btn" target="_blank" rel="noopener" href="${this.escAttr(s.whatsapp_url)}">WhatsApp</a>`);
+    }
+
+    const socialHost = document.getElementById('social-links');
+    if (socialHost) socialHost.innerHTML = social.join(' ');
+  },
+
+  renderNav() {
+    const profile = this.state.profile;
+    const user = this.state.user;
+    const current = (location.hash || '#home').slice(1);
+
+    const links = [['home', t('home')]];
+
+    if (user) {
+      links.push(
+        ['cart', `${t('cart')} (${Cart.count()})`],
+        ['orders', t('orders')],
+        ['account', `${t('account')} (${this.esc(profile?.username || user.email || '')})`]
+      );
+
+      if (profile?.role === 'admin') {
+        links.push(['admin', t('admin')]);
+      }
+
+      links.push(['logout', t('logout')]);
+    } else {
+      links.push(['login', t('login')], ['register', t('register')]);
+    }
+
+    const nav = document.getElementById('main-nav');
+    if (!nav) return;
+
+    nav.innerHTML = links.map(([route, label]) => `
+      <a href="#${route}" data-route="${route}" class="btn ${current === route ? 'active' : ''}">
+        ${label}
+      </a>
+    `).join('');
+
+    nav.querySelectorAll('[data-route]').forEach(link => {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+        this.go(link.dataset.route);
+      });
+    });
+  },
+
+  async go(route) {
+    if (route === 'logout') {
+      try {
+        await Auth.logout();
+      } catch (e) {
+        console.error(e);
+      }
+      await this.refreshShell();
+      location.hash = 'home';
+      return;
+    }
+
+    location.hash = route;
+    await this.route();
+  },
+
+  async refreshShell() {
+    try {
+      await Auth.refresh();
+    } catch (e) {
+      console.error('Auth refresh failed:', e);
+      this.state.user = null;
+      this.state.profile = null;
+    }
+
+    this.renderNav();
+
+    try {
+      await this.notifications();
+    } catch (e) {
+      console.error('Notifications failed:', e);
+    }
+  },
+
+  async notifications() {
+    const button = document.getElementById('notify-btn');
+    const badge = document.getElementById('notify-badge');
+    const list = document.getElementById('notify-list');
+
+    if (!button || !badge || !list) return;
+
+    if (!this.state.user) {
+      button.classList.add('hidden');
+      badge.classList.add('hidden');
+      list.innerHTML = '';
+      return;
+    }
+
+    button.classList.remove('hidden');
+
+    let query = db
+      .from('notifications')
+      .select('*')
+      .eq('user_id', this.state.user.id)
+      .order('created_at', { ascending: false })
+      .limit(30);
+
+    const { data, error } = await query;
+
+    if (error) {
+      console.error(error);
+      list.innerHTML = `<div class="notify-item muted">Notifications unavailable.</div>`;
+      badge.classList.add('hidden');
+      return;
+    }
+
+    this.state.notifications = data || [];
+
+    // Support either is_read or read_at schema styles.
+    const unread = this.state.notifications.filter(n => {
+      if ('is_read' in n) return n.is_read !== true;
+      if ('read_at' in n) return !n.read_at;
+      return false;
+    }).length;
+
+    badge.textContent = unread > 99 ? '99+' : String(unread);
+    badge.classList.toggle('hidden', unread === 0);
+
+    list.innerHTML = this.state.notifications.length
+      ? this.state.notifications.map(n => `
+          <div class="notify-item">
+            <strong>${this.esc(localize(n, 'title'))}</strong>
+            <div>${this.esc(localize(n, 'message'))}</div>
+            <small class="muted">${n.created_at ? new Date(n.created_at).toLocaleString() : ''}</small>
+          </div>
+        `).join('')
+      : `<div class="notify-item muted">No notifications yet.</div>`;
+  },
+
+  async route() {
+    const route = (location.hash || '#home').slice(1);
+    this.renderNav();
+
+    if (route === 'home') return Products.renderHome();
+    if (route === 'cart') return Cart.render();
+    if (route === 'login') return this.loginView();
+    if (route === 'register') return this.registerView();
+    if (route === 'account') return this.accountView();
+    if (route === 'orders') return this.ordersView();
+    if (route === 'admin') return Admin.render();
+
+    return Products.renderHome();
+  },
+
+  loginView() {
+    if (this.state.user) {
+      this.go('account');
+      return;
+    }
+
+    this.view(`
+      <form id="login-form" class="panel">
+        <h2>${t('login')}</h2>
+
+        <div class="form-group">
+          <label>Email</label>
+          <input name="email" type="email" required autocomplete="email">
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input name="password" type="password" required autocomplete="current-password">
+        </div>
+
+        <button class="btn primary">${t('login')}</button>
+      </form>
+    `);
+
+    document.getElementById('login-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+      const f = new FormData(event.currentTarget);
+
+      try {
+        await Auth.login(f.get('email'), f.get('password'));
+        await this.refreshShell();
+        this.clearAlert();
+        location.hash = 'home';
+        await this.route();
+      } catch (e) {
+        this.alert(e.message || String(e), 'err');
+      }
+    });
+  },
+
+  registerView() {
+    if (this.state.user) {
+      this.go('account');
+      return;
+    }
+
+    this.view(`
+      <form id="reg-form" class="panel">
+        <h2>${t('register')}</h2>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>Username</label>
+            <input name="username" required>
+          </div>
+
+          <div class="form-group">
+            <label>Email</label>
+            <input name="email" type="email" required autocomplete="email">
+          </div>
+        </div>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>First Name</label>
+            <input name="first_name">
+          </div>
+
+          <div class="form-group">
+            <label>Last Name</label>
+            <input name="last_name">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Password</label>
+          <input name="password" type="password" minlength="8" required autocomplete="new-password">
+        </div>
+
+        <button class="btn primary">${t('register')}</button>
+      </form>
+    `);
+
+    document.getElementById('reg-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      try {
+        await Auth.register(new FormData(event.currentTarget));
+        this.alert('Registration submitted. Check your email if confirmation is enabled.');
+        location.hash = 'login';
+        await this.route();
+      } catch (e) {
+        this.alert(e.message || String(e), 'err');
+      }
+    });
+  },
+
+  accountView() {
+    if (!this.state.user) {
+      this.go('login');
+      return;
+    }
+
+    const p = this.state.profile || {};
+
+    this.view(`
+      <form id="account-form" class="panel">
+        <h2>${t('account')}</h2>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>Username</label>
+            <input name="username" value="${this.escAttr(p.username || '')}" required>
+          </div>
+
+          <div class="form-group">
+            <label>Email</label>
+            <input value="${this.escAttr(this.state.user.email || '')}" disabled>
+          </div>
+        </div>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>First Name</label>
+            <input name="first_name" value="${this.escAttr(p.first_name || '')}">
+          </div>
+
+          <div class="form-group">
+            <label>Last Name</label>
+            <input name="last_name" value="${this.escAttr(p.last_name || '')}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Mobile Number</label>
+          <input name="mobile_number" value="${this.escAttr(p.mobile_number || '')}">
+        </div>
+
+        <div class="form-group">
+          <label>Delivery Address</label>
+          <textarea name="delivery_address">${this.esc(p.delivery_address || '')}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label>New Password (leave blank to keep existing)</label>
+          <input name="new_password" type="password" autocomplete="new-password">
+        </div>
+
+        <button class="btn primary">Save Changes</button>
+      </form>
+    `);
+
+    document.getElementById('account-form')?.addEventListener('submit', async event => {
+      event.preventDefault();
+
+      try {
+        await Auth.updateProfile(new FormData(event.currentTarget));
+        this.alert('Account updated.');
+        this.renderNav();
+      } catch (e) {
+        this.alert(e.message || String(e), 'err');
+      }
+    });
+  },
+
+  async ordersView() {
+    if (!this.state.user) {
+      this.go('login');
+      return;
+    }
+
+    const { data, error } = await db
+      .from('orders')
+      .select('*,order_items(*)')
+      .eq('user_id', this.state.user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) {
+      console.error(error);
+      this.view(`<div class="alert err">Unable to load orders: ${this.esc(error.message)}</div>`);
+      return;
+    }
+
+    this.view(`
+      <h2>${t('orders')} (${(data || []).length})</h2>
+
+      ${(data || []).map(o => `
+        <div class="card">
+          <strong>Order #${this.esc(o.order_number)}</strong>
+          <div>${o.created_at ? new Date(o.created_at).toLocaleString() : ''}</div>
+          <div>Status: ${this.esc(o.status)}</div>
+          <div>Total: ${Number(o.total_usd || 0).toFixed(2)} USD</div>
+
+          <ul>
+            ${(o.order_items || []).map(i =>
+              `<li>${this.esc(i.product_title)} × ${Number(i.quantity || 0)}</li>`
+            ).join('')}
+          </ul>
+        </div>
+      `).join('') || `<div class="card">You have not placed any orders yet.</div>`}
+    `);
+  },
+
+  async footer() {
+    const host = document.getElementById('footer-links');
+    if (!host) return;
+
+    try {
+      const { data, error } = await db.from('pages').select('*');
+      if (error) throw error;
+
+      const visible = (data || []).filter(p => p.enabled === undefined || p.enabled === true);
+
+      host.innerHTML = visible.map(p => `
+        <a href="#" class="btn footer-page" data-id="${this.escAttr(p.id)}">
+          ${this.esc(localize(p, 'title'))}
+        </a>
+      `).join('');
+
+      host.querySelectorAll('.footer-page').forEach(link => {
+        link.addEventListener('click', event => {
+          event.preventDefault();
+          const page = visible.find(x => String(x.id) === String(link.dataset.id));
+          if (!page) return;
+
+          this.modal(`
+            <h2>${this.esc(localize(page, 'title'))}</h2>
+            <div>${page.content || ''}</div>
+          `);
+        });
+      });
+    } catch (e) {
+      console.error('Footer pages unavailable:', e);
+      host.innerHTML = '';
+    }
+  },
+
+  async start() {
+    // Critical fix: controls and navigation are wired BEFORE any Supabase query.
+    document.getElementById('year').textContent = new Date().getFullYear();
+    this.wireStaticControls();
+    this.applyBasicUI();
+    this.renderNav();
+
+    // Always show something useful immediately.
+    this.view(`<div class="card">Loading StoreFront...</div>`);
+
+    // Each backend area is isolated. One failure no longer stops the whole site.
+    await this.loadSettings();
+    this.applySettings();
+
+    try {
+      await Auth.refresh();
+    } catch (e) {
+      console.error('Authentication initialization failed:', e);
+    }
+
+    this.renderNav();
+
+    try {
+      await Products.load();
+    } catch (e) {
+      console.error('Product data initialization failed:', e);
+      this.alert('The site loaded, but product data could not be loaded: ' + (e.message || e), 'err');
+    }
+
+    try {
+      await this.footer();
+    } catch (e) {
+      console.error(e);
+    }
+
+    try {
+      await this.notifications();
+    } catch (e) {
+      console.error(e);
+    }
+
+    await this.route();
+
+    db.auth.onAuthStateChange(() => {
+      setTimeout(async () => {
+        await this.refreshShell();
+        await this.route();
+      }, 0);
+    });
+  }
+};
+
+Store.start().catch(error => {
+  console.error('Fatal StoreFront startup error:', error);
+  Store.applyBasicUI();
+  Store.renderNav();
+  Store.view(`
+    <div class="alert err">
+      StoreFront encountered a startup error: ${Store.esc(error.message || error)}
+    </div>
+    <div class="card">
+      The page controls remain available. Open your browser developer console for the full error.
+    </div>
+  `);
+});
