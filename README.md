@@ -1,35 +1,39 @@
-# StoreFront Step 10 — Product Management
+# StoreFront Step 11 — Multi-image gallery + Checkout
 
-## Run SQL first
-Open Supabase SQL Editor and run `STEP10-SQL.sql`.
+## 1. Run SQL first
+Run `STEP11-SQL.sql` in Supabase SQL Editor.
 
-It adds `product_images.storage_path`, which allows an admin to delete an image from Supabase Storage cleanly instead of only deleting its database URL.
+This replaces the checkout RPC with the per-item PayPal Transaction ID workflow and adds a unique index so the same Transaction ID cannot be reused across order items.
 
-## Keep your working config
-This ZIP still contains the placeholder `js/config.js`.
-Keep your current working GitHub `js/config.js`, or copy its Project URL and publishable key into this one.
+## 2. Keep your working config
+Do not overwrite your working `js/config.js` with the placeholder version unless you copy your existing Project URL and publishable key into it.
 
-Never use a service-role / secret key in GitHub Pages.
+## New storefront behavior
+- Product cards now have previous/next arrows when more than one image exists.
+- Clicking the product image opens a larger viewer.
+- The viewer has arrows and thumbnail navigation.
+- Cart continues to use browser localStorage for the pre-checkout basket.
+- Checkout requires the customer to open every unique product's PayPal link.
+- Checkout requires one PayPal Transaction ID for each unique product.
+- Delivery contact information is required.
+- Delivery Policy agreement is required.
+- Order creation happens through a SECURITY DEFINER Supabase RPC.
+- Product prices and stock are re-read and validated by PostgreSQL.
+- Stock is locked while the order is created.
+- Stock is decremented atomically after the order is accepted.
+- Product expenses are snapshotted into each order item.
+- Duplicate product entries are rejected server-side.
+- Reused PayPal Transaction IDs are rejected by a unique database index.
+- Admin Orders shows every per-item PayPal Transaction ID and supports order status/admin notes updates.
+- My Orders also displays each item's PayPal Transaction ID.
 
-## New in Step 10
-- Full product editing
-- Product active/inactive setting
-- Numeric display order
-- Multiple product-image upload
-- 8 MB/type validation in browser
-- Supabase Storage upload to the existing `product-images` bucket
-- Image deletion from Storage + database
-- Image display ordering
-- Included Content add/edit/delete/order
-- Included Content displayed as-is, no Arabic translation
-- Included Content popup paginated at 25 entries per page
-- Product expense add/edit/delete/order
-- Product deletion cleans up stored images first
+## Financial total note
+The legacy PHP checkout labels its total as including delivery fees, PayPal gateway fees and 5% VAT, but the observed checkout code accumulates item subtotals into `$total` and does not show a separate fee/VAT calculation in that path.
 
-## Checkout
-Not enabled in Step 10. The agreed workflow for the next checkout milestone is:
-1. Each unique cart item displays its own `paypal_link`.
-2. The customer manually visits each PayPal link and pays.
-3. The customer manually enters the corresponding PayPal Transaction ID for each unique item.
-4. The order is submitted only after all required transaction IDs and delivery information are entered.
-5. The IDs are stored on `order_items` for manual admin verification.
+Therefore Step 11 deliberately stores:
+- delivery_fee_usd = 0
+- payment_gateway_fee_usd = 0
+- vat_usd = 0
+- total_usd = item subtotal
+
+This prevents the new system from inventing charges. We can add explicit fee/VAT rules once their actual formula is defined.
