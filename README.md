@@ -1,57 +1,35 @@
-# StoreFront Step 9.1 — startup fix
+# StoreFront Step 10 — Product Management
 
-This revision fixes the blank-page/startup problem reported after Step 9.
+## Run SQL first
+Open Supabase SQL Editor and run `STEP10-SQL.sql`.
 
-Critical change:
-- Navigation, language, theme, login/register routes and modal controls are initialized before Supabase reads.
-- A failed optional query no longer stops the entire site.
-- Product child records are loaded separately instead of depending on nested relationship expansion during startup.
-- Visible diagnostic errors are shown instead of leaving the page blank.
+It adds `product_images.storage_path`, which allows an admin to delete an image from Supabase Storage cleanly instead of only deleting its database URL.
 
-Checkout remains intentionally disabled for this revision. The agreed final checkout model is:
-- each unique cart item uses its own PayPal link;
-- the customer manually pays using that item link;
-- the customer manually enters the PayPal Transaction ID corresponding to each unique item;
-- those IDs are submitted with the order for manual verification.
+## Keep your working config
+This ZIP still contains the placeholder `js/config.js`.
+Keep your current working GitHub `js/config.js`, or copy its Project URL and publishable key into this one.
 
-# StoreFront — Supabase/GitHub Pages rebuild
+Never use a service-role / secret key in GitHub Pages.
 
-This package is the first real frontend milestone for the StoreFront rebuild.
+## New in Step 10
+- Full product editing
+- Product active/inactive setting
+- Numeric display order
+- Multiple product-image upload
+- 8 MB/type validation in browser
+- Supabase Storage upload to the existing `product-images` bucket
+- Image deletion from Storage + database
+- Image display ordering
+- Included Content add/edit/delete/order
+- Included Content displayed as-is, no Arabic translation
+- Included Content popup paginated at 25 entries per page
+- Product expense add/edit/delete/order
+- Product deletion cleans up stored images first
 
-## Before uploading
-1. Keep your existing working `js/config.js` values.
-2. If replacing the whole repository with this package, edit `js/config.js` and insert your Supabase Project URL and **publishable** key.
-3. Never put a service-role key, secret key, database password, PayPal secret, or email-provider secret in this repository.
-
-## Implemented in this milestone
-- Responsive StoreFront-style header/navigation/footer
-- English/Arabic and RTL
-- Light/dark mode
-- Supabase settings
-- Supabase Auth: login, registration, logout, account editing
-- Admin-role detection
-- Public products, categories, types and text bar
-- Search, filters, sorting, pagination
-- Product cards, discounts, stock status
-- Included-content modal
-- Browser cart for authenticated users
-- My Orders view
-- Notifications view
-- Admin: add/delete products, categories, types and text-bar entries
-- Admin: orders/messages read views
-- Admin: basic site settings
-- Footer/guide foundations
-
-## Intentionally not enabled yet
-- Final checkout/payment submission
-- Delivery fee / PayPal fee / VAT calculation
-- Per-item PayPal transaction-ID workflow
-- Product image upload/editing
-- Product included-content editing in Admin
-- Product expense editing in Admin
-- Full product edit form
-- Rich footer/guide page editor
-- Statistics/revenue dashboard
-- CSV import/export
-
-Those are the next milestones. Checkout is deliberately held back until its financial/payment rules are finalized.
+## Checkout
+Not enabled in Step 10. The agreed workflow for the next checkout milestone is:
+1. Each unique cart item displays its own `paypal_link`.
+2. The customer manually visits each PayPal link and pays.
+3. The customer manually enters the corresponding PayPal Transaction ID for each unique item.
+4. The order is submitted only after all required transaction IDs and delivery information are entered.
+5. The IDs are stored on `order_items` for manual admin verification.
