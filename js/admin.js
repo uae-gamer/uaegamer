@@ -739,10 +739,14 @@ window.Admin = {
             </div>
           </div>
 
-          <button class="btn success save-order" data-id="${o.id}">Save Order Status / Notes</button>
+          <button class="btn success save-order" data-id="${o.id}">Save Order Status / Notes</button> <button class="btn secondary admin-receipt" data-id="${o.id}">View Receipt</button>
         </div>
       `).join('') || '<div class="card">No orders yet.</div>'}
     `;
+
+    document.querySelectorAll('.admin-receipt').forEach(btn => {
+      btn.onclick = () => Store.go(`receipt/${btn.dataset.id}`);
+    });
 
     document.querySelectorAll('.save-order').forEach(btn => {
       btn.onclick = async () => {
@@ -770,18 +774,31 @@ window.Admin = {
     const {data,error} = await db.from('messages').select('*').order('created_at',{ascending:false});
     if (error) return this.err(error);
 
+    const rows = data || [];
     document.getElementById('admin-body').innerHTML = `
-      <h2>Contact Messages (${(data||[]).length})</h2>
-      <div class="table-wrap"><table>
-        ${(data||[]).map(m => `
+      <h2>Contact Messages (${rows.length})</h2>
+      ${rows.length ? `<div class="table-wrap"><table>
+        <thead><tr><th>Date</th><th>Email</th><th>Type</th><th>Message</th><th>Action</th></tr></thead>
+        <tbody>${rows.map(m => `
           <tr>
             <td>${m.created_at?new Date(m.created_at).toLocaleString():''}</td>
-            <td>${Store.esc(m.email||'')}</td>
-            <td>${Store.esc(m.type||'')}</td>
+            <td><a href="mailto:${Store.escAttr(m.email||'')}">${Store.esc(m.email||'')}</a></td>
+            <td><strong>${Store.esc(m.type||'')}</strong></td>
             <td>${Store.esc(m.message||'')}</td>
-          </tr>`).join('')}
-      </table></div>
+            <td><button class="btn danger delete-message" data-id="${m.id}">Delete</button></td>
+          </tr>`).join('')}</tbody>
+      </table></div>` : '<div class="card">No contact messages received.</div>'}
     `;
+
+    document.querySelectorAll('.delete-message').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Delete this message?')) return;
+        const result = await db.from('messages').delete().eq('id',btn.dataset.id);
+        if (result.error) return this.err(result.error);
+        Store.alert('Message deleted.');
+        await this.messages();
+      };
+    });
   },
 
   pages() { return this.contentTable('pages','Footer Pages'); },

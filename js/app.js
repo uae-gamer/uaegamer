@@ -98,8 +98,10 @@ window.Store = {
       }
     });
 
-    document.getElementById('notify-btn')?.addEventListener('click', () => {
-      document.getElementById('notify-panel')?.classList.toggle('hidden');
+    document.getElementById('notify-btn')?.addEventListener('click', async () => {
+      const panel = document.getElementById('notify-panel');
+      panel?.classList.toggle('hidden');
+      if (panel && !panel.classList.contains('hidden')) await this.markNotificationsRead();
     });
 
     document.getElementById('notify-close')?.addEventListener('click', () => {
@@ -164,7 +166,7 @@ window.Store = {
     const current = (location.hash || '#home').slice(1);
     const navCurrent = current === 'checkout' ? 'cart' : current;
 
-    const links = [['home', t('home')]];
+    const links = [['home', t('home')], ['contact', this.state.lang === 'ar' ? 'اتصل بنا' : 'Contact']];
 
     if (user) {
       links.push(
@@ -268,11 +270,7 @@ window.Store = {
     this.state.notifications = data || [];
 
     // Support either is_read or read_at schema styles.
-    const unread = this.state.notifications.filter(n => {
-      if ('is_read' in n) return n.is_read !== true;
-      if ('read_at' in n) return !n.read_at;
-      return false;
-    }).length;
+    const unread = this.state.notifications.filter(n => !n.read_at).length;
 
     badge.textContent = unread > 99 ? '99+' : String(unread);
     badge.classList.toggle('hidden', unread === 0);
@@ -288,6 +286,18 @@ window.Store = {
       : `<div class="notify-item muted">No notifications yet.</div>`;
   },
 
+  async markNotificationsRead() {
+    if (!this.state.user) return;
+    const ids = (this.state.notifications || []).filter(n => !n.read_at).map(n => n.id);
+    if (!ids.length) return;
+    const { error } = await db.from('notifications')
+      .update({ read_at: new Date().toISOString() })
+      .in('id', ids)
+      .eq('user_id', this.state.user.id);
+    if (!error) await this.notifications();
+    else console.error(error);
+  },
+
   async route() {
     const route = (location.hash || '#home').slice(1);
     this.renderNav();
@@ -299,6 +309,8 @@ window.Store = {
     if (route === 'register') return this.registerView();
     if (route === 'account') return this.accountView();
     if (route === 'orders') return this.ordersView();
+    if (route.startsWith('receipt/')) return this.receiptView(route.split('/')[1]);
+    if (route === 'contact') return this.contactView();
     if (route === 'admin') return Admin.render();
 
     return Products.renderHome();
@@ -470,10 +482,7 @@ window.Store = {
   },
 
   async ordersView() {
-    if (!this.state.user) {
-      this.go('login');
-      return;
-    }
+    if (!this.state.user) return this.go('login');
 
     const { data, error } = await db
       .from('orders')
@@ -482,32 +491,162 @@ window.Store = {
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error(error);
       this.view(`<div class="alert err">Unable to load orders: ${this.esc(error.message)}</div>`);
       return;
     }
 
+    const receiptStatuses = new Set(['processing','confirmed','shipped','delivered']);
+
     this.view(`
       <h2>${t('orders')} (${(data || []).length})</h2>
-
       ${(data || []).map(o => `
         <div class="card">
-          <strong>Order #${this.esc(o.order_number)}</strong>
-          <div>${o.created_at ? new Date(o.created_at).toLocaleString() : ''}</div>
-          <div>Status: ${this.esc(o.status)}</div>
-          <div>Total: ${Number(o.total_usd || 0).toFixed(2)} USD</div>
-
+          <div class="order-summary-head">
+            <div>
+              <strong>Order #${this.esc(o.order_number)}</strong><br>
+              <span class="muted">${o.created_at ? new Date(o.created_at).toLocaleString() : ''}</span>
+            </div>
+            <div>${this.statusBadge(o.status)}</div>
+          </div>
+          <div><strong>Total:</strong> ${Number(o.total_usd || 0).toFixed(2)} USD</div>
           <ul>
-            ${(o.order_items || []).map(i =>
-              `<li>
-                ${this.esc(i.product_title)} × ${Number(i.quantity || 0)}
-                <br><small>PayPal Transaction ID: ${this.esc(i.paypal_transaction_id || 'N/A')}</small>
-              </li>`
-            ).join('')}
+            ${(o.order_items || []).map(i => `
+              <li>${this.esc(i.product_title)} × ${Number(i.quantity || 0)}
+              <br><small>PayPal Transaction ID: ${this.esc(i.paypal_transaction_id || 'N/A')}</small></li>
+            `).join('')}
           </ul>
+          ${receiptStatuses.has(o.status)
+            ? `<button class="btn secondary receipt-btn" data-id="${o.id}">Print / View Receipt</button>`
+            : `<span class="muted">Receipt available after payment/order verification.</span>`}
         </div>
       `).join('') || `<div class="card">You have not placed any orders yet.</div>`}
     `);
+
+    document.querySelectorAll('.receipt-btn').forEach(btn => {
+      btn.onclick = () => this.go(`receipt/${btn.dataset.id}`);
+    });
+  },
+
+  statusBadge(status) {
+    const map = {
+      pending: ['Pending Verification','status-pending'],
+      processing: ['Processing','status-processing'],
+      confirmed: ['Verified / Confirmed','status-confirmed'],
+      shipped: ['Shipped for Delivery','status-shipped'],
+      delivered: ['Delivered / Completed','status-delivered'],
+      cancelled: ['Cancelled','status-cancelled'],
+      rejected: ['Unverified / Rejected','status-rejected']
+    };
+    const pair = map[status] || [status || 'Unknown',''];
+    return `<span class="order-status-badge ${pair[1]}">${this.esc(pair[0])}</span>`;
+  },
+
+  async receiptView(orderId) {
+    if (!this.state.user) return this.go('login');
+
+    const { data: order, error } = await db
+      .from('orders')
+      .select('*,order_items(*)')
+      .eq('id', orderId)
+      .single();
+
+    if (error || !order) {
+      this.view('<div class="alert err">Receipt/order not found.</div>');
+      return;
+    }
+
+    const allowed = ['processing','confirmed','shipped','delivered'].includes(order.status)
+      || this.state.profile?.role === 'admin';
+
+    if (!allowed) {
+      this.view(`<div class="alert err">Payment receipt is unavailable because the order is not verified yet.</div>
+      <button id="receipt-back" class="btn">Back to Orders</button>`);
+      document.getElementById('receipt-back').onclick = () => this.go('orders');
+      return;
+    }
+
+    const items = order.order_items || [];
+    this.view(`
+      <div class="receipt-box">
+        <div class="receipt-header">
+          <h2>${this.esc(localize(this.state.settings,'site_name') || 'StoreFront')}</h2>
+          <strong>OFFICIAL PAYMENT RECEIPT</strong>
+        </div>
+        <div class="receipt-meta">
+          <div><strong>Order #:</strong> ${this.esc(order.order_number)}<br>
+          <strong>Date & Time:</strong> ${order.created_at ? new Date(order.created_at).toLocaleString() : ''}<br>
+          <strong>Order Status:</strong> ${this.statusBadge(order.status)}</div>
+          <div><strong>Customer Name:</strong> ${this.esc((order.first_name||'')+' '+(order.last_name||''))}<br>
+          <strong>Email:</strong> ${this.esc(order.email||'')}<br>
+          <strong>Mobile:</strong> ${this.esc(order.mobile_number||'')}<br>
+          <strong>Delivery Address:</strong> ${this.esc(order.delivery_address||'')}</div>
+        </div>
+        <div class="table-wrap"><table>
+          <thead><tr><th>Item Title</th><th>Unit Price</th><th>Quantity</th><th>Subtotal</th><th>PayPal Transaction ID</th></tr></thead>
+          <tbody>${items.map(i => `
+            <tr><td>${this.esc(i.product_title||'')}</td>
+            <td>${Number(i.unit_price_usd||0).toFixed(2)} USD</td>
+            <td>${Number(i.quantity||0)}</td>
+            <td>${(Number(i.unit_price_usd||0)*Number(i.quantity||0)).toFixed(2)} USD</td>
+            <td>${this.esc(i.paypal_transaction_id||'N/A')}</td></tr>`).join('')}</tbody>
+        </table></div>
+        <div class="receipt-totals">
+          <div>Delivery fee: ${Number(order.delivery_fee_usd||0).toFixed(2)} USD</div>
+          <div>Payment gateway fee: ${Number(order.payment_gateway_fee_usd||0).toFixed(2)} USD</div>
+          <div>VAT: ${Number(order.vat_usd||0).toFixed(2)} USD</div>
+          <div class="receipt-grand-total">Total: ${Number(order.total_usd||0).toFixed(2)} USD</div>
+        </div>
+      </div>
+      <div class="receipt-actions">
+        <button id="print-receipt" class="btn secondary">Print Receipt</button>
+        <button id="receipt-back" class="btn">Back to Orders</button>
+      </div>
+    `);
+
+    document.getElementById('print-receipt').onclick = () => window.print();
+    document.getElementById('receipt-back').onclick = () => this.go('orders');
+  },
+
+  contactView() {
+    if (!this.state.user) {
+      this.view(`<div class="card"><h2>${this.state.lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</h2>
+      <p>${this.state.lang === 'ar' ? 'يجب تسجيل الدخول لإرسال رسالة.' : 'Please log in to submit a contact message.'}</p>
+      <button id="contact-login" class="btn primary">${t('login')}</button></div>`);
+      document.getElementById('contact-login').onclick = () => this.go('login');
+      return;
+    }
+
+    this.view(`
+      <form id="contact-form" class="panel">
+        <h2>${this.state.lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</h2>
+        <div class="form-group"><label>Email Address</label>
+          <input name="email" type="email" value="${this.escAttr(this.state.user.email||'')}" required></div>
+        <div class="form-group"><label>Message Type</label>
+          <select name="type" required>
+            <option value="Order Related">Order Related</option>
+            <option value="Complain">Complain</option>
+            <option value="Feedback">Feedback</option>
+            <option value="Question">Question</option>
+          </select></div>
+        <div class="form-group"><label>Your Message</label>
+          <textarea name="message" rows="6" required></textarea></div>
+        <button class="btn primary">Submit Message</button>
+      </form>`);
+
+    document.getElementById('contact-form').onsubmit = async event => {
+      event.preventDefault();
+      const fd = new FormData(event.currentTarget);
+      const { error } = await db.from('messages').insert({
+        user_id: this.state.user.id,
+        email: String(fd.get('email')||'').trim(),
+        type: String(fd.get('type')||'').trim(),
+        message: String(fd.get('message')||'').trim()
+      });
+      if (error) return this.alert('Unable to send message: ' + error.message, 'err');
+      event.currentTarget.reset();
+      event.currentTarget.querySelector('[name="email"]').value = this.state.user.email || '';
+      this.alert('Your message has been sent successfully.');
+    };
   },
 
   async footer() {
