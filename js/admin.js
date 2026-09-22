@@ -674,24 +674,96 @@ window.Admin = {
   textbar() { return this.simpleTable('text_bar','Text Bar','text','text_ar'); },
 
   async orders() {
-    const {data,error} = await db.from('orders').select('*,order_items(*)').order('created_at',{ascending:false});
+    const {data,error} = await db.from('orders')
+      .select('*,order_items(*)')
+      .order('created_at',{ascending:false});
+
     if (error) return this.err(error);
 
+    const rows = data || [];
+
     document.getElementById('admin-body').innerHTML = `
-      <h2>Manage Orders (${(data||[]).length})</h2>
-      <div class="table-wrap"><table>
-        <thead><tr><th>#</th><th>Customer</th><th>Total</th><th>Status</th><th>Date</th></tr></thead>
-        <tbody>${(data||[]).map(o => `
-          <tr>
-            <td>${Store.esc(o.order_number)}</td>
-            <td>${Store.esc((o.first_name||'')+' '+(o.last_name||''))}<br>${Store.esc(o.email||'')}</td>
-            <td>${Number(o.total_usd||0).toFixed(2)} USD</td>
-            <td>${Store.esc(o.status||'')}</td>
-            <td>${o.created_at?new Date(o.created_at).toLocaleString():''}</td>
-          </tr>`).join('')}
-        </tbody>
-      </table></div>
+      <h2>Manage Orders (${rows.length})</h2>
+
+      ${rows.map(o => `
+        <div class="card admin-order-card">
+          <div class="admin-order-head">
+            <div>
+              <strong>Order #${Store.esc(o.order_number)}</strong><br>
+              ${Store.esc((o.first_name||'')+' '+(o.last_name||''))}<br>
+              ${Store.esc(o.email||'')}<br>
+              ${Store.esc(o.mobile_number||'')}
+            </div>
+
+            <div>
+              <strong>${Number(o.total_usd||0).toFixed(2)} USD</strong><br>
+              <span class="muted">${o.created_at?new Date(o.created_at).toLocaleString():''}</span>
+            </div>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Item</th>
+                  <th>Qty</th>
+                  <th>Unit Price</th>
+                  <th>PayPal Transaction ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${(o.order_items||[]).map(i => `
+                  <tr>
+                    <td>${Store.esc(i.product_title||'')}</td>
+                    <td>${Number(i.quantity||0)}</td>
+                    <td>${Number(i.unit_price_usd||0).toFixed(2)} USD</td>
+                    <td><code>${Store.esc(i.paypal_transaction_id||'N/A')}</code></td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+
+          <div class="bilingual">
+            <div class="form-group">
+              <label>Order Status</label>
+              <select class="order-status" data-id="${o.id}">
+                ${['pending','processing','confirmed','shipped','delivered','cancelled','rejected']
+                  .map(s => `<option value="${s}" ${o.status===s?'selected':''}>${s}</option>`).join('')}
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Admin Notes</label>
+              <textarea class="order-admin-notes" data-id="${o.id}">${Store.esc(o.admin_notes||'')}</textarea>
+            </div>
+          </div>
+
+          <button class="btn success save-order" data-id="${o.id}">Save Order Status / Notes</button>
+        </div>
+      `).join('') || '<div class="card">No orders yet.</div>'}
     `;
+
+    document.querySelectorAll('.save-order').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.id;
+        const status = document.querySelector(`.order-status[data-id="${CSS.escape(id)}"]`).value;
+        const notes = document.querySelector(`.order-admin-notes[data-id="${CSS.escape(id)}"]`).value.trim();
+
+        const patch = {
+          status,
+          admin_notes: notes || null,
+          delivered_at: status === 'delivered' ? new Date().toISOString() : null,
+          cancelled_at: ['cancelled','rejected'].includes(status) ? new Date().toISOString() : null
+        };
+
+        const result = await db.from('orders').update(patch).eq('id',id);
+        if (result.error) return this.err(result.error);
+
+        Store.alert('Order updated.');
+        await this.orders();
+      };
+    });
   },
 
   async messages() {

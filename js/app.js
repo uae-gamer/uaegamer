@@ -497,7 +497,10 @@ window.Store = {
 
           <ul>
             ${(o.order_items || []).map(i =>
-              `<li>${this.esc(i.product_title)} × ${Number(i.quantity || 0)}</li>`
+              `<li>
+                ${this.esc(i.product_title)} × ${Number(i.quantity || 0)}
+                <br><small>PayPal Transaction ID: ${this.esc(i.paypal_transaction_id || 'N/A')}</small>
+              </li>`
             ).join('')}
           </ul>
         </div>

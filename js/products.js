@@ -166,6 +166,7 @@ window.Products = {
     const activePrice = this.price(p);
     const images = [...(p.product_images || [])].sort((a,b) => Number(a.sort_order||0)-Number(b.sort_order||0));
     const image = images[0]?.image_url || '';
+    const imageCount = images.length;
 
     const status = p.status === 'coming_soon'
       ? `<span class="stock-coming">${t('coming')}</span>`
@@ -178,10 +179,16 @@ window.Products = {
 
     return `
       <article class="product">
-        <div class="product-img">
+        <div class="product-img product-gallery" data-product="${Store.escAttr(p.id)}" data-index="0">
           ${image
-            ? `<img src="${Store.escAttr(image)}" alt="${Store.escAttr(localize(p,'title'))}">`
+            ? `<img class="product-gallery-image" src="${Store.escAttr(image)}" alt="${Store.escAttr(localize(p,'title'))}">`
             : `<span class="muted">No image</span>`}
+
+          ${imageCount > 1 ? `
+            <button type="button" class="gallery-arrow gallery-prev" data-id="${Store.escAttr(p.id)}" aria-label="Previous image">‹</button>
+            <button type="button" class="gallery-arrow gallery-next" data-id="${Store.escAttr(p.id)}" aria-label="Next image">›</button>
+            <span class="gallery-counter">1 / ${imageCount}</span>
+          ` : ''}
         </div>
 
         <h3>${Store.esc(localize(p,'title'))}</h3>
@@ -211,6 +218,112 @@ window.Products = {
   bindCards() {
     document.querySelectorAll('.add').forEach(b => b.onclick = () => Cart.add(b.dataset.id));
     document.querySelectorAll('.included').forEach(b => b.onclick = () => this.showIncluded(b.dataset.id, 1));
+
+    document.querySelectorAll('.gallery-prev').forEach(b => {
+      b.onclick = event => {
+        event.stopPropagation();
+        this.changeImage(b.dataset.id, -1);
+      };
+    });
+
+    document.querySelectorAll('.gallery-next').forEach(b => {
+      b.onclick = event => {
+        event.stopPropagation();
+        this.changeImage(b.dataset.id, 1);
+      };
+    });
+
+    document.querySelectorAll('.product-gallery-image').forEach(img => {
+      img.onclick = () => {
+        const gallery = img.closest('.product-gallery');
+        if (gallery) this.openImageViewer(gallery.dataset.product, Number(gallery.dataset.index || 0));
+      };
+    });
+  },
+
+  changeImage(productId, delta) {
+    const product = (Store.state.products || []).find(x => x.id === productId);
+    const gallery = document.querySelector(`.product-gallery[data-product="${CSS.escape(productId)}"]`);
+    if (!product || !gallery) return;
+
+    const images = [...(product.product_images || [])].sort(
+      (a,b) => Number(a.sort_order||0)-Number(b.sort_order||0)
+    );
+    if (images.length < 2) return;
+
+    let index = Number(gallery.dataset.index || 0);
+    index = (index + delta + images.length) % images.length;
+    gallery.dataset.index = String(index);
+
+    const img = gallery.querySelector('.product-gallery-image');
+    const counter = gallery.querySelector('.gallery-counter');
+
+    if (img) img.src = images[index].image_url;
+    if (counter) counter.textContent = `${index + 1} / ${images.length}`;
+  },
+
+  openImageViewer(productId, index = 0) {
+    const product = (Store.state.products || []).find(x => x.id === productId);
+    if (!product) return;
+
+    const images = [...(product.product_images || [])].sort(
+      (a,b) => Number(a.sort_order||0)-Number(b.sort_order||0)
+    );
+    if (!images.length) return;
+
+    index = Math.max(0, Math.min(index, images.length - 1));
+
+    Store.modal(`
+      <div class="image-viewer" data-product="${Store.escAttr(productId)}" data-index="${index}">
+        <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
+
+        <div class="image-viewer-stage">
+          ${images.length > 1 ? `<button id="viewer-prev" class="gallery-arrow viewer-arrow viewer-prev">‹</button>` : ''}
+          <img id="viewer-image" src="${Store.escAttr(images[index].image_url)}" alt="">
+          ${images.length > 1 ? `<button id="viewer-next" class="gallery-arrow viewer-arrow viewer-next">›</button>` : ''}
+        </div>
+
+        <div id="viewer-counter" class="gallery-viewer-counter">${index + 1} / ${images.length}</div>
+
+        ${images.length > 1 ? `
+          <div class="image-thumbs">
+            ${images.map((img,i) => `
+              <button class="image-thumb ${i===index?'active':''}" data-i="${i}">
+                <img src="${Store.escAttr(img.image_url)}" alt="">
+              </button>
+            `).join('')}
+          </div>` : ''}
+      </div>
+    `);
+
+    const show = newIndex => {
+      const viewer = document.querySelector('.image-viewer');
+      if (!viewer) return;
+
+      newIndex = (newIndex + images.length) % images.length;
+      viewer.dataset.index = String(newIndex);
+
+      document.getElementById('viewer-image').src = images[newIndex].image_url;
+      document.getElementById('viewer-counter').textContent = `${newIndex + 1} / ${images.length}`;
+
+      document.querySelectorAll('.image-thumb').forEach(x => {
+        x.classList.toggle('active', Number(x.dataset.i) === newIndex);
+      });
+    };
+
+    document.getElementById('viewer-prev')?.addEventListener('click', () => {
+      const viewer = document.querySelector('.image-viewer');
+      show(Number(viewer.dataset.index||0)-1);
+    });
+
+    document.getElementById('viewer-next')?.addEventListener('click', () => {
+      const viewer = document.querySelector('.image-viewer');
+      show(Number(viewer.dataset.index||0)+1);
+    });
+
+    document.querySelectorAll('.image-thumb').forEach(btn => {
+      btn.onclick = () => show(Number(btn.dataset.i));
+    });
   },
 
   showIncluded(productId, page = 1) {
