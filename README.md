@@ -1,3 +1,19 @@
+# StoreFront Step 9.1 — startup fix
+
+This revision fixes the blank-page/startup problem reported after Step 9.
+
+Critical change:
+- Navigation, language, theme, login/register routes and modal controls are initialized before Supabase reads.
+- A failed optional query no longer stops the entire site.
+- Product child records are loaded separately instead of depending on nested relationship expansion during startup.
+- Visible diagnostic errors are shown instead of leaving the page blank.
+
+Checkout remains intentionally disabled for this revision. The agreed final checkout model is:
+- each unique cart item uses its own PayPal link;
+- the customer manually pays using that item link;
+- the customer manually enters the PayPal Transaction ID corresponding to each unique item;
+- those IDs are submitted with the order for manual verification.
+
 # StoreFront — Supabase/GitHub Pages rebuild
 
 This package is the first real frontend milestone for the StoreFront rebuild.
