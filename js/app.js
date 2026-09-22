@@ -162,6 +162,7 @@ window.Store = {
     const profile = this.state.profile;
     const user = this.state.user;
     const current = (location.hash || '#home').slice(1);
+    const navCurrent = current === 'checkout' ? 'cart' : current;
 
     const links = [['home', t('home')]];
 
@@ -185,7 +186,7 @@ window.Store = {
     if (!nav) return;
 
     nav.innerHTML = links.map(([route, label]) => `
-      <a href="#${route}" data-route="${route}" class="btn ${current === route ? 'active' : ''}">
+      <a href="#${route}" data-route="${route}" class="btn ${navCurrent === route ? 'active' : ''}">
         ${label}
       </a>
     `).join('');
@@ -293,6 +294,7 @@ window.Store = {
 
     if (route === 'home') return Products.renderHome();
     if (route === 'cart') return Cart.render();
+    if (route === 'checkout') return Cart.renderCheckout();
     if (route === 'login') return this.loginView();
     if (route === 'register') return this.registerView();
     if (route === 'account') return this.accountView();

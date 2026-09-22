@@ -1,5 +1,22 @@
 window.Cart = {
   key: 'storefront_cart_v1',
+  checkoutStateKey: 'storefront_checkout_state_v1',
+
+  getCheckoutState() {
+    try {
+      return JSON.parse(sessionStorage.getItem(this.checkoutStateKey) || '{"clicked":[],"tx":{}}');
+    } catch {
+      return { clicked: [], tx: {} };
+    }
+  },
+
+  saveCheckoutState(state) {
+    sessionStorage.setItem(this.checkoutStateKey, JSON.stringify(state));
+  },
+
+  clearCheckoutState() {
+    sessionStorage.removeItem(this.checkoutStateKey);
+  },
 
   get() {
     try { return JSON.parse(localStorage.getItem(this.key) || '{}'); }
@@ -13,6 +30,7 @@ window.Cart = {
 
   clear() {
     localStorage.removeItem(this.key);
+    this.clearCheckoutState();
     Store.renderNav();
   },
 
@@ -144,7 +162,7 @@ window.Cart = {
       };
     });
 
-    document.getElementById('continue-checkout').onclick = () => this.renderCheckout();
+    document.getElementById('continue-checkout').onclick = () => Store.go('checkout');
   },
 
   renderCheckout() {
@@ -161,13 +179,14 @@ window.Cart = {
         </div>
         <button id="back-cart" class="btn secondary">Back to Cart</button>
       `);
-      document.getElementById('back-cart').onclick = () => this.render();
+      document.getElementById('back-cart').onclick = () => Store.go('cart');
       return;
     }
 
     const profile = Store.state.profile || {};
     const email = Store.state.user?.email || '';
     const itemTotal = rows.reduce((sum,[p,q]) => sum + Products.price(p)*q, 0);
+    const savedState = this.getCheckoutState();
 
     Store.view(`
       <button id="back-cart" class="btn secondary">← Back to Cart</button>
@@ -245,11 +264,14 @@ window.Cart = {
                 name="tx_${p.id}"
                 placeholder="e.g. 9XX12345YY67890ZZ"
                 autocomplete="off"
+                value="${Store.escAttr(savedState.tx?.[p.id] || '')}"
                 required>
             </div>
 
             <div class="paypal-click-status muted" data-id="${p.id}">
-              Open the PayPal link before submitting the order.
+              ${(savedState.clicked || []).includes(p.id)
+                ? 'PayPal link opened. Enter the corresponding Transaction ID.'
+                : 'Open the PayPal link before submitting the order.'}
             </div>
           </div>
         `).join('')}
@@ -276,13 +298,17 @@ window.Cart = {
       </form>
     `);
 
-    document.getElementById('back-cart').onclick = () => this.render();
+    document.getElementById('back-cart').onclick = () => Store.go('cart');
 
-    const clicked = new Set();
+    const clicked = new Set(savedState.clicked || []);
 
     document.querySelectorAll('.checkout-paypal-link').forEach(link => {
       link.addEventListener('click', () => {
         clicked.add(link.dataset.id);
+
+        const current = this.getCheckoutState();
+        current.clicked = Array.from(clicked);
+        this.saveCheckoutState(current);
 
         const status = document.querySelector(
           `.paypal-click-status[data-id="${CSS.escape(link.dataset.id)}"]`
@@ -294,12 +320,22 @@ window.Cart = {
     });
 
     document.querySelectorAll('.paypal-tx-input').forEach(input => {
-      input.addEventListener('input', () => this.updateCheckoutSubmitState(clicked, rows));
+      input.addEventListener('input', () => {
+        const current = this.getCheckoutState();
+        current.clicked = Array.from(clicked);
+        current.tx = current.tx || {};
+        current.tx[input.dataset.id] = input.value;
+        this.saveCheckoutState(current);
+        this.updateCheckoutSubmitState(clicked, rows);
+      });
     });
 
     document.getElementById('delivery-agree').addEventListener('change', () => {
       this.updateCheckoutSubmitState(clicked, rows);
     });
+
+    // Restore the submit-button state after returning from PayPal.
+    this.updateCheckoutSubmitState(clicked, rows);
 
     document.getElementById('checkout-form').onsubmit = async event => {
       event.preventDefault();
