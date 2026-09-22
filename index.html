@@ -1,128 +1,55 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" dir="ltr">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
-    <title>StoreFront</title>
-
-    <link rel="stylesheet" href="./css/style.css">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="StoreFront">
+  <title>StoreFront</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./css/style.css">
 </head>
-
 <body>
+<header>
+  <div class="shell">
+    <div id="brand" class="brand"><h1 id="site-title">StoreFront</h1></div>
+    <p id="site-subtitle" class="subtitle"></p>
+    <div class="toolbar">
+      <div><button class="mini active" data-lang="en">English</button><button class="mini" data-lang="ar">العربية</button></div>
+      <div class="notify-wrap">
+        <button id="notify-btn" class="mini hidden">Notifications <span id="notify-badge" class="badge hidden">0</span></button>
+        <div id="notify-panel" class="notify-panel hidden"><div class="panel-head"><strong data-i18n="notifications">Notifications</strong><button id="notify-close" class="xbtn">×</button></div><div id="notify-list"></div></div>
+      </div>
+      <div><button class="mini active" data-theme="light">Light</button><button class="mini" data-theme="dark">Dark</button></div>
+    </div>
+  </div>
+</header>
 
-    <main class="container">
+<main class="shell">
+  <nav id="main-nav" class="main-nav"></nav>
+  <div id="alert-host"></div>
+  <section id="view"></section>
+</main>
 
-        <h1 id="site-name">StoreFront</h1>
+<footer class="shell footer">
+  <div id="footer-links" class="footer-links"></div>
+  <div id="social-links" class="social-links"></div>
+  <p>© <span id="year"></span> <span id="footer-name">StoreFront</span>. <span data-i18n="rights">All rights reserved.</span></p>
+</footer>
 
-        <p id="site-description">
-            Connecting to StoreFront backend...
-        </p>
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-box"><button id="modal-close" class="modal-close">×</button><div id="modal-body"></div></div>
+</div>
 
-        <div id="connection-status" class="status">
-            Checking Supabase connection...
-        </div>
-
-
-        <!-- ==================================================
-             LOGGED OUT
-        =================================================== -->
-
-        <section id="logged-out-section" hidden>
-
-            <h2>Log In</h2>
-
-            <form id="login-form">
-
-                <label for="login-email">Email</label>
-
-                <input
-                    id="login-email"
-                    type="email"
-                    required
-                    autocomplete="email"
-                >
-
-                <label for="login-password">Password</label>
-
-                <input
-                    id="login-password"
-                    type="password"
-                    required
-                    autocomplete="current-password"
-                >
-
-                <button type="submit">
-                    Log In
-                </button>
-
-            </form>
-
-            <p id="login-message"></p>
-
-        </section>
-
-
-        <!-- ==================================================
-             LOGGED IN
-        =================================================== -->
-
-        <section id="logged-in-section" hidden>
-
-            <h2>Account</h2>
-
-            <p>
-                Signed in as:
-                <strong id="user-email"></strong>
-            </p>
-
-            <p>
-                Username:
-                <strong id="username">-</strong>
-            </p>
-
-            <p>
-                Account role:
-                <strong id="user-role">-</strong>
-            </p>
-
-            <div id="admin-confirmation" hidden>
-                <strong>Admin access confirmed.</strong>
-            </div>
-
-            <br>
-
-            <button id="logout-button" type="button">
-                Log Out
-            </button>
-
-        </section>
-
-
-        <!-- ==================================================
-             PRODUCTS
-        =================================================== -->
-
-        <section>
-
-            <h2>Products</h2>
-
-            <div id="products">
-                Loading products...
-            </div>
-
-        </section>
-
-    </main>
-
-
-    <!-- Supabase browser library -->
-    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-
-    <!-- Our application -->
-    <script src="./js/config.js"></script>
-    <script src="./js/supabase.js"></script>
-    <script src="./js/app.js"></script>
-
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./js/config.js"></script>
+<script src="./js/supabase.js"></script>
+<script src="./js/i18n.js"></script>
+<script src="./js/auth.js"></script>
+<script src="./js/products.js"></script>
+<script src="./js/cart.js"></script>
+<script src="./js/admin.js"></script>
+<script src="./js/app.js"></script>
 </body>
 </html>
