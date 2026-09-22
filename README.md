@@ -1,3 +1,17 @@
+# StoreFront Step 11.1 — Checkout return-state fix
+
+This revision fixes the issue where opening a product's PayPal link and returning to the StoreFront sent the user back to the main Cart view.
+
+Changes:
+- Checkout now has its own `#checkout` route.
+- The PayPal-link-clicked state is stored in `sessionStorage`.
+- Entered PayPal Transaction IDs are temporarily stored in `sessionStorage`.
+- Returning from PayPal keeps the user on Checkout.
+- The Cart navigation remains highlighted while on Checkout.
+- Successful order submission clears both the cart and temporary checkout state.
+
+No SQL changes are required if you already ran Step 11 SQL.
+
 # StoreFront Step 11 — Multi-image gallery + Checkout
 
 ## 1. Run SQL first
