@@ -1,1 +1,51 @@
+:root {
+    font-family: Arial, sans-serif;
+    color-scheme: light dark;
+}
 
+body {
+    margin: 0;
+    padding: 20px;
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.status {
+    padding: 12px;
+    margin: 20px 0;
+    border: 1px solid #888;
+    border-radius: 6px;
+}
+
+section {
+    margin-top: 30px;
+    padding: 20px;
+    border: 1px solid #888;
+    border-radius: 6px;
+}
+
+form {
+    display: grid;
+    gap: 10px;
+    max-width: 400px;
+}
+
+input,
+button {
+    padding: 10px;
+    font: inherit;
+}
+
+button {
+    cursor: pointer;
+}
+
+#admin-confirmation {
+    margin-top: 15px;
+    padding: 12px;
+    border: 2px solid currentColor;
+    border-radius: 6px;
+}
