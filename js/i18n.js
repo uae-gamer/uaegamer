@@ -1,1 +1,6 @@
-
+window.I18N={
+en:{home:'Home',cart:'Cart',orders:'My Orders',account:'Manage Account',admin:'Admin Control',login:'Log In',register:'Register',logout:'Logout',notifications:'Notifications',rights:'All rights reserved.',search:'Search listed items...',allCategories:'All Categories',allTypes:'All Types',defaultOrder:'Default Order',az:'Name: A-Z',za:'Name: Z-A',lowHigh:'Price: Low to High',highLow:'Price: High to Low',noItems:'No items currently available for sale.',included:'Included Content',addCart:'Add to Cart',coming:'Coming Soon',out:'Out of Stock',inStock:'In Stock'},
+ar:{home:'الرئيسية',cart:'السلة',orders:'طلباتي',account:'إدارة الحساب',admin:'لوحة الإدارة',login:'تسجيل الدخول',register:'إنشاء حساب',logout:'تسجيل الخروج',notifications:'الإشعارات',rights:'جميع الحقوق محفوظة.',search:'البحث في المنتجات...',allCategories:'جميع التصنيفات',allTypes:'كل الأنواع',defaultOrder:'الترتيب الافتراضي',az:'الاسم: أ-ي',za:'الاسم: ي-أ',lowHigh:'السعر: من الأقل إلى الأعلى',highLow:'السعر: من الأعلى إلى الأقل',noItems:'لا توجد منتجات متاحة للبيع حالياً.',included:'المحتويات المشمولة',addCart:'أضف إلى السلة',coming:'قريباً',out:'نفد المخزون',inStock:'متوفر'}
+};
+window.t=k=>(I18N[Store.state.lang]||I18N.en)[k]||k;
+window.localize=(o,k)=>Store.state.lang==='ar'?(o?.[k+'_ar']||o?.[k]||''):(o?.[k]||'');
