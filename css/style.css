@@ -154,3 +154,8 @@ body{overflow-y:scroll}
 .catalog-summary{margin:8px 0 12px;color:var(--desc);font-weight:700}
 .catalog-loading{text-align:center;padding:28px}
 .pagination-gap{display:inline-flex;align-items:center;padding:0 4px;color:var(--desc)}
+
+.auth-enabled{font-weight:700;color:var(--success)}
+.auth-disabled{font-weight:700;color:var(--danger)}
+.user-management-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+#admin-body code{white-space:pre-wrap;word-break:break-word;font-family:'Fira Code',monospace}
