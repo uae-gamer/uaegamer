@@ -809,6 +809,23 @@ window.Store = {
   async start() {
     document.getElementById('year').textContent = new Date().getFullYear();
 
+    // Track meaningful unsaved edits without interfering with background-tab focus changes.
+    let formDirty = false;
+    document.addEventListener('input', event => {
+      const form = event.target?.closest?.('form');
+      if (form && !form.dataset.noDirtyGuard) formDirty = true;
+    });
+    document.addEventListener('change', event => {
+      const form = event.target?.closest?.('form');
+      if (form && !form.dataset.noDirtyGuard) formDirty = true;
+    });
+    document.addEventListener('submit', () => { formDirty = false; }, true);
+    window.addEventListener('beforeunload', event => {
+      if (!formDirty) return;
+      event.preventDefault();
+      event.returnValue = '';
+    });
+
     // Wire controls first, but keep the visual shell cloaked until real settings are applied.
     this.wireStaticControls();
     this.applyBasicUI();
@@ -853,12 +870,27 @@ window.Store = {
         }
       } catch (_) {}
 
-      db.auth.onAuthStateChange((event) => {
-        // Supabase may emit TOKEN_REFRESHED when a background tab becomes active.
-        // That does not change the visible user, so do not rebuild the page for it.
-        if (!['SIGNED_IN','SIGNED_OUT','USER_UPDATED'].includes(event)) return;
+      db.auth.onAuthStateChange((event, session) => {
+        const currentUserId = this.state.user?.id || null;
+        const nextUserId = session?.user?.id || null;
+
+        // Background tab activation can emit TOKEN_REFRESHED and sometimes SIGNED_IN
+        // for the SAME existing session. Neither should rebuild the current route/form.
+        if (event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') return;
+        if (event === 'SIGNED_IN' && currentUserId === nextUserId) return;
+        if (event === 'SIGNED_OUT' && currentUserId === null) return;
 
         setTimeout(async () => {
+          // USER_UPDATED normally changes account metadata/password, not the route.
+          // Refresh the shell/navigation only so active unsaved forms stay untouched.
+          if (event === 'USER_UPDATED' && currentUserId === nextUserId) {
+            await Auth.refresh();
+            this.renderNav();
+            return;
+          }
+
+          // A genuine identity transition (login/logout/account switch) may change
+          // permissions and available routes, so rebuild normally.
           await this.refreshShell();
           await this.route();
         }, 0);

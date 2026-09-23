@@ -6,6 +6,7 @@ window.Admin = {
     ['textbar','Text Bar'],
     ['users','Registered Users'],
     ['audit','Audit Log'],
+    ['email_templates','Email Templates'],
     ['email_log','Email Log'],
     ['orders','Orders'],
     ['report','Revenue Report'],
@@ -1178,6 +1179,140 @@ window.Admin = {
         </div>
       ` : '<div class="card">No sensitive admin actions have been recorded yet.</div>'}
     `;
+  },
+
+  async email_templates() {
+    const { data, error } = await db
+      .from('email_templates')
+      .select('*')
+      .order('display_name', { ascending: true });
+
+    if (error) return this.err(error);
+
+    const rows = data || [];
+
+    document.getElementById('admin-body').innerHTML = `
+      <h2>Email Templates (${rows.length})</h2>
+      <p class="muted">
+        Edit the subject, HTML body and plain-text body used by transactional emails.
+        Changes take effect on the next email; the Edge Function does not need to be redeployed.
+      </p>
+
+      <div class="card">
+        <strong>Available placeholders</strong>
+        <div class="template-placeholders">
+          <code>{{site_name}}</code>
+          <code>{{first_name}}</code>
+          <code>{{last_name}}</code>
+          <code>{{customer_name}}</code>
+          <code>{{email}}</code>
+          <code>{{order_number}}</code>
+          <code>{{order_status}}</code>
+          <code>{{order_total}}</code>
+          <code>{{order_items_html}}</code>
+          <code>{{order_items_text}}</code>
+        </div>
+        <p class="muted">
+          Use <code>{{order_items_html}}</code> only in the HTML body and
+          <code>{{order_items_text}}</code> in the plain-text body.
+        </p>
+      </div>
+
+      ${rows.map(row => `
+        <form class="panel email-template-form" data-key="${Store.escAttr(row.template_key)}">
+          <div class="email-template-heading">
+            <div>
+              <h3>${Store.esc(row.display_name)}</h3>
+              <code>${Store.esc(row.template_key)}</code>
+            </div>
+            <label class="check-line">
+              <input type="checkbox" name="enabled" style="width:auto" ${row.enabled?'checked':''}>
+              Enabled
+            </label>
+          </div>
+
+          <div class="form-group">
+            <label>Subject</label>
+            <input name="subject_template" value="${Store.escAttr(row.subject_template||'')}" required>
+          </div>
+
+          <div class="form-group">
+            <label>HTML Body</label>
+            <textarea name="html_template" rows="10" class="code-editor" required>${Store.esc(row.html_template||'')}</textarea>
+          </div>
+
+          <div class="form-group">
+            <label>Plain-Text Body</label>
+            <textarea name="text_template" rows="10" class="code-editor" required>${Store.esc(row.text_template||'')}</textarea>
+          </div>
+
+          <div class="template-preview-actions">
+            <button class="btn success">Save Template</button>
+            <button type="button" class="btn secondary preview-template">Preview</button>
+          </div>
+        </form>
+      `).join('')}
+    `;
+
+    const sample = {
+      site_name: Store.state.settings?.site_name || 'StoreFront',
+      first_name: 'Ahmed',
+      last_name: 'Customer',
+      customer_name: 'Ahmed Customer',
+      email: 'customer@example.com',
+      order_number: '12345',
+      order_status: 'Verified / Confirmed',
+      order_total: '129.00',
+      order_items_html: `
+        <table style="width:100%;border-collapse:collapse">
+          <tr><td style="padding:6px">Example Product</td><td style="padding:6px">1</td><td style="padding:6px">129.00 USD</td></tr>
+        </table>`,
+      order_items_text: 'Example Product x1 — 129.00 USD'
+    };
+
+    const replaceTokens = (template, values) =>
+      String(template || '').replace(/{{\\s*([a-z0-9_]+)\\s*}}/gi, (_, key) =>
+        Object.prototype.hasOwnProperty.call(values, key) ? values[key] : `{{${key}}}`
+      );
+
+    document.querySelectorAll('.email-template-form').forEach(form => {
+      form.onsubmit = async event => {
+        event.preventDefault();
+        const f = event.currentTarget;
+        const fd = new FormData(f);
+
+        const payload = {
+          subject_template: String(fd.get('subject_template')||''),
+          html_template: String(fd.get('html_template')||''),
+          text_template: String(fd.get('text_template')||''),
+          enabled: fd.has('enabled')
+        };
+
+        const result = await db
+          .from('email_templates')
+          .update(payload)
+          .eq('template_key', f.dataset.key);
+
+        if (result.error) return this.err(result.error);
+
+        Store.alert('Email template saved.');
+      };
+
+      form.querySelector('.preview-template').onclick = () => {
+        const fd = new FormData(form);
+        const subject = replaceTokens(fd.get('subject_template'), sample);
+        const htmlBody = replaceTokens(fd.get('html_template'), sample);
+        const textBody = replaceTokens(fd.get('text_template'), sample);
+
+        Store.modal(`
+          <h2>${Store.esc(subject)}</h2>
+          <h3>HTML Preview</h3>
+          <div class="email-template-preview">${htmlBody}</div>
+          <h3>Plain-Text Preview</h3>
+          <pre class="plain-email-preview">${Store.esc(textBody)}</pre>
+        `);
+      };
+    });
   },
 
   async email_log() {
