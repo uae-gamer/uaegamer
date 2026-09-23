@@ -48,6 +48,16 @@ window.Store = {
     return '';
   },
 
+  contrastText(hex) {
+    const value = String(hex || '').trim();
+    if (!/^#[0-9a-f]{6}$/i.test(value)) return '#ffffff';
+    const r = parseInt(value.slice(1,3),16);
+    const g = parseInt(value.slice(3,5),16);
+    const b = parseInt(value.slice(5,7),16);
+    const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
+    return luminance > 0.62 ? '#000000' : '#ffffff';
+  },
+
   sanitizeHtml(html) {
     const template = document.createElement('template');
     template.innerHTML = String(html ?? '');
@@ -341,18 +351,17 @@ window.Store = {
     const whatsappUrl = this.safeUrl(s.whatsapp_url || '');
     const snapchatUrl = this.safeUrl(s.snapchat_url || '');
     const tiktokUrl = this.safeUrl(s.tiktok_url || '');
-    if (s.show_social_icons && instagramUrl) {
-      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(instagramUrl)}">Instagram</a>`);
-    }
-    if (s.show_social_icons && whatsappUrl) {
-      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(whatsappUrl)}">WhatsApp</a>`);
-    }
-    if (s.show_social_icons && snapchatUrl) {
-      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(snapchatUrl)}">Snapchat</a>`);
-    }
-    if (s.show_social_icons && tiktokUrl) {
-      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(tiktokUrl)}">TikTok</a>`);
-    }
+    const socialButton = (name,url,color) => {
+      const bg = /^#[0-9a-f]{6}$/i.test(String(color||'')) ? color : '#333333';
+      const fg = this.contrastText(bg);
+      return `<a class="btn social-brand-btn" target="_blank" rel="noopener noreferrer"
+        style="background:${this.escAttr(bg)};color:${this.escAttr(fg)};border-color:${this.escAttr(bg)}"
+        href="${this.escAttr(url)}">${name}</a>`;
+    };
+    if (s.show_social_icons && instagramUrl) social.push(socialButton('Instagram', instagramUrl, s.instagram_color));
+    if (s.show_social_icons && whatsappUrl) social.push(socialButton('WhatsApp', whatsappUrl, s.whatsapp_color));
+    if (s.show_social_icons && snapchatUrl) social.push(socialButton('Snapchat', snapchatUrl, s.snapchat_color));
+    if (s.show_social_icons && tiktokUrl) social.push(socialButton('TikTok', tiktokUrl, s.tiktok_color));
 
     const socialHost = document.getElementById('social-links');
     if (socialHost) socialHost.innerHTML = social.join(' ');

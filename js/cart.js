@@ -132,22 +132,31 @@ window.Cart = {
             ${rows.map(([p, qty]) => `
               <tr>
                 <td>${Store.esc(localize(p,'title'))}</td>
-                <td>${Products.price(p).toFixed(2)} ${t('usd')}</td>
+                <td>
+                  <div>${Products.price(p).toFixed(2)} ${t('usd')}</div>
+                  <div class="approx-aed">${t('equalsApprox')}: ${(Products.price(p)*3.67).toFixed(2)} ${t('aed')}</div>
+                </td>
                 <td><input class="qty" data-id="${p.id}" type="number" min="0"
                            max="${Number(p.stock_quantity||0)}" value="${qty}" style="width:80px"></td>
-                <td>${(Products.price(p)*qty).toFixed(2)} ${t('usd')}</td>
+                <td>
+                  <div>${(Products.price(p)*qty).toFixed(2)} ${t('usd')}</div>
+                  <div class="approx-aed">${t('equalsApprox')}: ${(Products.price(p)*qty*3.67).toFixed(2)} ${t('aed')}</div>
+                </td>
                 <td><button class="btn danger remove" data-id="${p.id}">${t('remove')}</button></td>
               </tr>`).join('')}
             <tr>
               <th colspan="3" style="text-align:end">${t('itemTotal')}:</th>
-              <th colspan="2">${total.toFixed(2)} ${t('usd')}</th>
+              <th colspan="2">
+                <div>${total.toFixed(2)} ${t('usd')}</div>
+                <div class="approx-aed">${t('equalsApprox')}: ${(total*3.67).toFixed(2)} ${t('aed')}</div>
+              </th>
             </tr>
           </tbody>
         </table>
       </div>
       <p class="muted">${ar
-        ? 'يعكس الإجمالي الحالي أسعار بيع المنتجات. تبقى رسوم التوصيل ورسوم بوابة الدفع وضريبة القيمة المضافة صفراً حتى يتم تحديد قواعد احتسابها.'
-        : 'The current total reflects item selling prices. Delivery, payment-gateway fees and VAT remain 0 until explicit calculation rules are configured.'}</p>
+        ? 'جميع الأسعار المعروضة نهائية وتشمل ضريبة القيمة المضافة المطبقة ورسوم التوصيل ورسوم PayPal/معالجة الدفع. لن تتم إضافة أي رسوم إضافية عند إتمام الطلب.'
+        : 'All prices shown are final and include applicable VAT, delivery charges, and PayPal/payment-processing fees. No additional charges will be added at checkout.'}</p>
       <button id="continue-checkout" class="btn success">${t('continueCheckout')}</button>
     `);
 
@@ -263,6 +272,7 @@ window.Cart = {
 
             <div class="description">
               ${ar ? 'المجموع الفرعي للمنتج' : 'Item subtotal'}: ${(Products.price(p)*qty).toFixed(2)} ${t('usd')}
+              <div class="approx-aed">${t('equalsApprox')}: ${(Products.price(p)*qty*3.67).toFixed(2)} ${t('aed')}</div>
             </div>
 
             <div class="form-group">
@@ -290,11 +300,17 @@ window.Cart = {
         `).join('')}
 
         <div class="card checkout-total-box">
-          <strong>${t('itemTotal')}: ${itemTotal.toFixed(2)} ${t('usd')}</strong>
-          <div class="muted">${t('deliveryFee')}: 0.00 ${t('usd')}</div>
-          <div class="muted">${t('gatewayFee')}: 0.00 ${t('usd')}</div>
-          <div class="muted">${t('vat')}: 0.00 ${t('usd')}</div>
-          <div><strong>${t('total')}: ${itemTotal.toFixed(2)} ${t('usd')}</strong></div>
+          <div>
+            <strong>${t('itemTotal')}: ${itemTotal.toFixed(2)} ${t('usd')}</strong>
+            <div class="approx-aed">${t('equalsApprox')}: ${(itemTotal*3.67).toFixed(2)} ${t('aed')}</div>
+          </div>
+          <div class="checkout-final-total">
+            <strong>${t('total')}: ${itemTotal.toFixed(2)} ${t('usd')}</strong>
+            <div class="approx-aed">${t('equalsApprox')}: ${(itemTotal*3.67).toFixed(2)} ${t('aed')}</div>
+          </div>
+          <p class="muted inclusive-price-note">${ar
+            ? 'السعر النهائي يشمل ضريبة القيمة المضافة المطبقة ورسوم التوصيل ورسوم PayPal/معالجة الدفع. لن تتم إضافة أي رسوم إضافية.'
+            : 'The final price includes applicable VAT, delivery charges, and PayPal/payment-processing fees. No additional charges will be added.'}</p>
         </div>
 
         <div class="form-group checkout-agree">

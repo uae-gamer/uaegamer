@@ -297,15 +297,26 @@ window.Products = {
     const price = Number(p.price_usd || 0);
     const discounted = Number(p.discounted_price_usd || 0);
     const activePrice = this.price(p);
+    const hasDiscount = discounted > 0 && discounted < price;
+    const discountPct = hasDiscount ? Math.round(((price - discounted) / price) * 100) : 0;
+
     const images = [...(p.product_images || [])].sort((a,b) => Number(a.sort_order||0)-Number(b.sort_order||0));
     const image = images[0]?.image_url || '';
     const imageCount = images.length;
 
     const status = p.status === 'coming_soon'
-      ? `<span class="stock-coming">${t('coming')}</span>`
+      ? `<span class="product-pill status-pill coming">${t('coming')}</span>`
       : (p.status === 'out_of_stock' || Number(p.stock_quantity || 0) <= 0)
-        ? `<span class="stock-out">${t('out')}</span>`
-        : `<span class="stock-in">${t('inStock')} (${Number(p.stock_quantity || 0)})</span>`;
+        ? `<span class="product-pill status-pill out">${t('out')}</span>`
+        : `<span class="product-pill status-pill in">${t('inStock')}</span>`;
+
+    const category = Store.state.lang === 'ar'
+      ? String(p.category_name_ar || '')
+      : String(p.category_name || '');
+
+    const type = Store.state.lang === 'ar'
+      ? String(p.type_name_ar || '')
+      : String(p.type_name || '');
 
     const canBuy = p.status === 'in_stock' && Number(p.stock_quantity || 0) > 0;
 
@@ -324,27 +335,45 @@ window.Products = {
         </div>
 
         <h3>${Store.esc(localize(p,'title'))}</h3>
-        <div class="description">${Store.esc(localize(p,'description')).slice(0,180)}</div>
 
-        <div class="price">
-          <span class="old-price-slot">
-            ${discounted > 0 && discounted < price
-              ? `<span class="old-price">${price.toFixed(2)} ${t('usd')}</span>`
-              : `<span class="old-price-placeholder">0.00 USD</span>`}
-          </span>
-          <span class="current-price">${activePrice.toFixed(2)} ${t('usd')}</span>
-          <div class="muted">${(activePrice * 3.67).toFixed(2)} ${t('aed')}</div>
+        <div class="description product-description">
+          ${Store.esc(localize(p,'description')).slice(0,180)}
         </div>
 
-        <div>${status}</div>
+        <div class="product-meta-row">
+          ${category
+            ? `<span class="product-pill meta-pill">${Store.esc(category)}</span>`
+            : `<span class="product-pill meta-pill placeholder-pill">Category</span>`}
+          ${type
+            ? `<span class="product-pill meta-pill">${Store.esc(type)}</span>`
+            : `<span class="product-pill meta-pill placeholder-pill">Type</span>`}
+        </div>
+
+        <div class="product-meta-row product-status-row">
+          ${status}
+          ${hasDiscount
+            ? `<span class="product-pill discount-pill">-${discountPct}%</span>`
+            : `<span class="product-pill discount-pill placeholder-pill">0%</span>`}
+        </div>
+
+        <div class="product-price-row">
+          <span class="old-price-area ${hasDiscount?'':'empty'}">
+            ${hasDiscount
+              ? `<span class="old-price">${price.toFixed(2)} ${t('usd')}</span>`
+              : '&nbsp;'}
+          </span>
+          <span class="current-price">${activePrice.toFixed(2)} ${t('usd')}</span>
+        </div>
+
+        <div class="aed-estimate">
+          ${t('equalsApprox')}: ${(activePrice * 3.67).toFixed(2)} ${t('aed')}
+        </div>
 
         <div class="product-actions">
-          <a class="btn secondary product-details-link" href="./product.html?id=${encodeURIComponent(p.id)}">${t('viewDetails')}</a>
-          <button class="btn included" data-id="${Store.escAttr(p.id)}">${t('included')}</button>
-
           ${canBuy
             ? `<button class="btn primary add" data-id="${Store.escAttr(p.id)}">${t('addCart')}</button>`
             : `<button class="btn" disabled>${p.status==='coming_soon'?t('coming'):t('out')}</button>`}
+          <a class="btn secondary product-details-link" href="./product.html?id=${encodeURIComponent(p.id)}">${t('viewDetails')}</a>
         </div>
       </article>
     `;

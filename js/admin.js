@@ -1798,12 +1798,23 @@ window.Admin = {
         <div class="bilingual">
           <div class="form-group"><label>Instagram URL</label>
             <input type="url" name="instagram_url" value="${Store.escAttr(data.instagram_url||'')}"></div>
+          <div class="form-group"><label>Instagram Button Color</label>
+            <input type="color" name="instagram_color" value="${Store.escAttr(data.instagram_color||'#E1306C')}"></div>
+
           <div class="form-group"><label>WhatsApp URL</label>
             <input type="url" name="whatsapp_url" value="${Store.escAttr(data.whatsapp_url||'')}"></div>
+          <div class="form-group"><label>WhatsApp Button Color</label>
+            <input type="color" name="whatsapp_color" value="${Store.escAttr(data.whatsapp_color||'#25D366')}"></div>
+
           <div class="form-group"><label>Snapchat URL</label>
             <input type="url" name="snapchat_url" value="${Store.escAttr(data.snapchat_url||'')}"></div>
+          <div class="form-group"><label>Snapchat Button Color</label>
+            <input type="color" name="snapchat_color" value="${Store.escAttr(data.snapchat_color||'#FFFC00')}"></div>
+
           <div class="form-group"><label>TikTok URL</label>
             <input type="url" name="tiktok_url" value="${Store.escAttr(data.tiktok_url||'')}"></div>
+          <div class="form-group"><label>TikTok Button Color</label>
+            <input type="color" name="tiktok_color" value="${Store.escAttr(data.tiktok_color||'#000000')}"></div>
         </div>
 
         <label class="check-line">
