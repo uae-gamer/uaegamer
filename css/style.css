@@ -159,3 +159,8 @@ body{overflow-y:scroll}
 .auth-disabled{font-weight:700;color:var(--danger)}
 .user-management-grid{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
 #admin-body code{white-space:pre-wrap;word-break:break-word;font-family:'Fira Code',monospace}
+
+.email-status{font-weight:800;text-transform:uppercase;font-size:.8rem}
+.email-sent{color:var(--success)}
+.email-failed{color:var(--danger)}
+.email-skipped{color:var(--desc)}
