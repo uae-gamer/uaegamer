@@ -56,6 +56,7 @@ window.Store = {
     document.documentElement.lang = this.state.lang;
     document.documentElement.dir = this.state.lang === 'ar' ? 'rtl' : 'ltr';
     document.body.classList.toggle('dark', this.state.theme === 'dark');
+    document.documentElement.dataset.theme = this.state.theme;
 
     document.querySelectorAll('[data-lang]').forEach(b => {
       b.classList.toggle('active', b.dataset.lang === this.state.lang);
@@ -125,6 +126,9 @@ window.Store = {
 
       if (error) throw error;
       this.state.settings = data || {};
+      try {
+        localStorage.setItem('sf_cached_settings', JSON.stringify(this.state.settings));
+      } catch (_) {}
       return true;
     } catch (e) {
       console.error('Site settings load failed:', e);
@@ -747,86 +751,111 @@ window.Store = {
     const host = document.getElementById('footer-links');
     if (!host) return;
 
-    try {
-      const { data, error } = await db.from('pages').select('*');
-      if (error) throw error;
+    const safeLoad = async table => {
+      try {
+        const { data, error } = await db.from(table).select('*');
+        if (error) throw error;
+        return data || [];
+      } catch (e) {
+        console.error(`${table} footer load failed:`, e);
+        return [];
+      }
+    };
 
-      const visible = (data || []).filter(p => p.enabled === undefined || p.enabled === true);
+    const [pages, guides] = await Promise.all([
+      safeLoad('pages'),
+      safeLoad('guide_pages')
+    ]);
 
-      host.innerHTML = visible.map(p => `
-        <a href="#" class="btn footer-page" data-id="${this.escAttr(p.id)}">
-          ${this.esc(localize(p, 'title'))}
-        </a>
-      `).join('');
+    const visiblePages = pages.filter(p => p.enabled === undefined || p.enabled === true);
+    const visibleGuides = guides.filter(p => p.enabled === undefined || p.enabled === true);
 
-      host.querySelectorAll('.footer-page').forEach(link => {
-        link.addEventListener('click', event => {
-          event.preventDefault();
-          const page = visible.find(x => String(x.id) === String(link.dataset.id));
-          if (!page) return;
+    const entries = [
+      ...visiblePages.map(p => ({ ...p, _source: 'pages' })),
+      ...visibleGuides.map(p => ({ ...p, _source: 'guide_pages' }))
+    ];
 
-          this.modal(`
-            <h2>${this.esc(localize(page, 'title'))}</h2>
-            <div>${page.content || ''}</div>
-          `);
-        });
+    host.innerHTML = entries.map(p => `
+      <a href="#" class="btn footer-page"
+         data-source="${p._source}"
+         data-id="${this.escAttr(p.id)}">
+        ${this.esc(localize(p, 'title'))}
+      </a>
+    `).join('');
+
+    host.querySelectorAll('.footer-page').forEach(link => {
+      link.addEventListener('click', event => {
+        event.preventDefault();
+
+        const source = link.dataset.source;
+        const collection = source === 'guide_pages' ? visibleGuides : visiblePages;
+        const page = collection.find(x => String(x.id) === String(link.dataset.id));
+        if (!page) return;
+
+        const htmlContent =
+          this.state.lang === 'ar'
+            ? (page.content_ar || page.content || '')
+            : (page.content || page.content_ar || '');
+
+        this.modal(`
+          <h2>${this.esc(localize(page, 'title'))}</h2>
+          <div class="managed-html-content">${htmlContent}</div>
+        `);
       });
-    } catch (e) {
-      console.error('Footer pages unavailable:', e);
-      host.innerHTML = '';
-    }
+    });
   },
 
   async start() {
-    // Critical fix: controls and navigation are wired BEFORE any Supabase query.
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Wire controls first, but keep the visual shell cloaked until real settings are applied.
     this.wireStaticControls();
     this.applyBasicUI();
-    this.renderNav();
-
-    // Always show something useful immediately.
-    this.view(`<div class="card">Loading StoreFront...</div>`);
-
-    // Each backend area is isolated. One failure no longer stops the whole site.
-    await this.loadSettings();
-    this.applySettings();
 
     try {
-      await Auth.refresh();
-    } catch (e) {
-      console.error('Authentication initialization failed:', e);
-    }
+      await this.loadSettings();
+      this.applySettings();
 
-    this.renderNav();
+      // Reveal the shell as soon as the true appearance has been applied.
+      document.documentElement.classList.add('app-ready');
 
-    try {
-      await Products.load();
-    } catch (e) {
-      console.error('Product data initialization failed:', e);
-      this.alert('The site loaded, but product data could not be loaded: ' + (e.message || e), 'err');
-    }
+      try {
+        await Auth.refresh();
+      } catch (e) {
+        console.error('Authentication initialization failed:', e);
+      }
 
-    try {
+      this.renderNav();
+
+      try {
+        await Products.load();
+      } catch (e) {
+        console.error('Product data initialization failed:', e);
+        this.alert('The site loaded, but product data could not be loaded: ' + (e.message || e), 'err');
+      }
+
       await this.footer();
-    } catch (e) {
-      console.error(e);
+
+      try {
+        await this.notifications();
+      } catch (e) {
+        console.error(e);
+      }
+
+      await this.route();
+
+      db.auth.onAuthStateChange(() => {
+        setTimeout(async () => {
+          await this.refreshShell();
+          await this.route();
+        }, 0);
+      });
+    } finally {
+      // Never leave the page invisible if a startup dependency fails.
+      document.documentElement.classList.add('app-ready');
     }
-
-    try {
-      await this.notifications();
-    } catch (e) {
-      console.error(e);
-    }
-
-    await this.route();
-
-    db.auth.onAuthStateChange(() => {
-      setTimeout(async () => {
-        await this.refreshShell();
-        await this.route();
-      }, 0);
-    });
   }
+
 };
 
 Store.start().catch(error => {
