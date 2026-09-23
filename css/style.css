@@ -181,3 +181,12 @@ body{overflow-y:scroll}
 .health-ok{border-left:4px solid var(--success)}
 .health-warning{border-left:4px solid #d97706}
 .health-critical{border-left:4px solid var(--danger)}
+
+.security-checks{display:grid;gap:10px}
+.security-check{padding:12px;border:1px solid var(--border);border-radius:8px}
+.security-check-head{display:flex;justify-content:space-between;gap:12px;margin-bottom:6px}
+.security-critical{border-left:4px solid var(--danger)}
+.security-warning{border-left:4px solid #d97706}
+.security-info{border-left:4px solid #2563eb}
+.security-ok{border-left:4px solid var(--success)}
+.security-check pre{white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto}
