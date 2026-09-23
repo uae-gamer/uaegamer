@@ -6,6 +6,7 @@ window.Admin = {
     ['textbar','Text Bar'],
     ['users','Registered Users'],
     ['audit','Audit Log'],
+    ['email_log','Email Log'],
     ['orders','Orders'],
     ['report','Revenue Report'],
     ['statistics','Statistics & Reports'],
@@ -1179,6 +1180,49 @@ window.Admin = {
     `;
   },
 
+  async email_log() {
+    const { data, error } = await db
+      .from('email_delivery_log')
+      .select('*')
+      .order('created_at', { ascending: false })
+      .limit(300);
+
+    if (error) return this.err(error);
+
+    const rows = data || [];
+    document.getElementById('admin-body').innerHTML = `
+      <h2>Email Delivery Log (${rows.length})</h2>
+      <p class="muted">
+        Transactional emails sent by the Supabase Edge Function through Resend.
+      </p>
+
+      ${rows.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Event</th><th>Recipient</th><th>Subject</th>
+                <th>Status</th><th>Provider ID / Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td>${r.created_at ? new Date(r.created_at).toLocaleString() : ''}</td>
+                  <td>${Store.esc(r.event_type || '')}</td>
+                  <td>${Store.esc(r.recipient || '')}</td>
+                  <td>${Store.esc(r.subject || '')}</td>
+                  <td><span class="email-status email-${Store.escAttr(r.status || '')}">${Store.esc(r.status || '')}</span></td>
+                  <td>${Store.esc(r.provider_message_id || r.error_message || '')}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : '<div class="card">No transactional email attempts have been recorded yet.</div>'}
+    `;
+  },
+
   pages() {
     return this.manageContentPages('pages','Footer Pages');
   },
@@ -1352,6 +1396,46 @@ window.Admin = {
           Show Website Statistics Bar in Footer
         </label>
 
+
+        <h3>Transactional Email</h3>
+        <p class="muted">
+          Resend API credentials are stored only in Supabase Edge Function Secrets, never here.
+          The sender address must belong to a domain verified in Resend.
+        </p>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>Sender Name</label>
+            <input name="email_from_name" value="${Store.escAttr(data.email_from_name||data.site_name||'')}">
+          </div>
+          <div class="form-group">
+            <label>Sender Email Address</label>
+            <input name="email_from_address" type="email" value="${Store.escAttr(data.email_from_address||'')}"
+                   placeholder="orders@yourdomain.com">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Admin Order Notification Email</label>
+          <input name="admin_notification_email" type="email"
+                 value="${Store.escAttr(data.admin_notification_email||'')}">
+        </div>
+
+        <label class="check-line">
+          <input type="checkbox" name="send_welcome_email" style="width:auto" ${data.send_welcome_email?'checked':''}>
+          Send welcome email when a new profile is created
+        </label>
+
+        <label class="check-line">
+          <input type="checkbox" name="send_order_customer_emails" style="width:auto" ${data.send_order_customer_emails!==false?'checked':''}>
+          Send customer order submission and status emails
+        </label>
+
+        <label class="check-line">
+          <input type="checkbox" name="send_admin_new_order_email" style="width:auto" ${data.send_admin_new_order_email?'checked':''}>
+          Send admin email when a new order is submitted
+        </label>
+
         <div style="margin-top:14px">
           <button class="btn success">Save Settings</button>
         </div>
@@ -1367,6 +1451,9 @@ window.Admin = {
       for (const [key,value] of fd.entries()) payload[key] = value;
       payload.show_social_icons = fd.has('show_social_icons');
       payload.show_stats = fd.has('show_stats');
+      payload.send_welcome_email = fd.has('send_welcome_email');
+      payload.send_order_customer_emails = fd.has('send_order_customer_emails');
+      payload.send_admin_new_order_email = fd.has('send_admin_new_order_email');
 
       const result = await db.from('site_settings').update(payload).eq('id',1);
       if (result.error) return this.err(result.error);
