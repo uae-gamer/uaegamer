@@ -91,3 +91,29 @@ html[dir="rtl"] .btn,
 html[dir="rtl"] .mini{
   font-family:var(--body-font)!important
 }
+
+/* Step 14.2: prevent default-theme/title flash while Supabase settings initialize. */
+html:not(.app-ready) body{visibility:hidden}
+html.app-ready body{visibility:visible}
+body{transition:background-color .12s ease,color .12s ease}
+
+/* Early theme bootstrap can apply dark variables before app.js runs. */
+html[data-theme="dark"] body{
+  --bg:#111827;
+  --card:#1f2937;
+  --text:#f3f4f6;
+  --desc:#cbd5e1;
+  --border:#4b5563;
+  --nav:#273244;
+}
+html[data-theme="light"] body{
+  --bg:#f4f6f8;
+  --card:#fff;
+  --text:#111827;
+  --desc:#6b7280;
+  --border:#d1d5db;
+  --nav:#fff;
+}
+.managed-html-content{line-height:1.65}
+.footer-links{justify-content:center}
+.footer-links .footer-page{flex:0 1 auto}
