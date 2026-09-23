@@ -249,7 +249,7 @@ window.Products = {
 
     let html = `
       <div class="catalog-summary">
-        ${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}
+        ${total.toLocaleString()} ${total === 1 ? t('item') : t('items')}
       </div>
     `;
 
@@ -276,7 +276,7 @@ window.Products = {
 
     let controls = '';
     if (page > 1) {
-      controls += `<button class="mini" data-catalog-page="${page-1}">Previous</button>`;
+      controls += `<button class="mini" data-catalog-page="${page-1}">${t('previous')}</button>`;
     }
 
     let last = 0;
@@ -287,7 +287,7 @@ window.Products = {
     }
 
     if (page < pages) {
-      controls += `<button class="mini" data-catalog-page="${page+1}">Next</button>`;
+      controls += `<button class="mini" data-catalog-page="${page+1}">${t('next')}</button>`;
     }
 
     return `<div class="pagination">${controls}</div>`;
@@ -314,11 +314,11 @@ window.Products = {
         <div class="product-img product-gallery" data-product="${Store.escAttr(p.id)}" data-index="0">
           ${image
             ? `<img loading="lazy" class="product-gallery-image" src="${Store.escAttr(image)}" alt="${Store.escAttr(localize(p,'title'))}">`
-            : `<span class="muted">No image</span>`}
+            : `<span class="muted">${t('noImage')}</span>`}
 
           ${imageCount > 1 ? `
-            <button type="button" class="gallery-arrow gallery-prev" data-id="${Store.escAttr(p.id)}" aria-label="Previous image">‹</button>
-            <button type="button" class="gallery-arrow gallery-next" data-id="${Store.escAttr(p.id)}" aria-label="Next image">›</button>
+            <button type="button" class="gallery-arrow gallery-prev" data-id="${Store.escAttr(p.id)}" aria-label="${t('previous')}">‹</button>
+            <button type="button" class="gallery-arrow gallery-next" data-id="${Store.escAttr(p.id)}" aria-label="${t('next')}">›</button>
             <span class="gallery-counter">1 / ${imageCount}</span>
           ` : ''}
         </div>
@@ -327,16 +327,19 @@ window.Products = {
         <div class="description">${Store.esc(localize(p,'description')).slice(0,180)}</div>
 
         <div class="price">
-          ${discounted > 0 && discounted < price
-            ? `<span class="old-price">${price.toFixed(2)} USD</span><br>` : ''}
-          ${activePrice.toFixed(2)} USD
-          <div class="muted">${(activePrice * 3.67).toFixed(2)} AED</div>
+          <span class="old-price-slot">
+            ${discounted > 0 && discounted < price
+              ? `<span class="old-price">${price.toFixed(2)} ${t('usd')}</span>`
+              : `<span class="old-price-placeholder">0.00 USD</span>`}
+          </span>
+          <span class="current-price">${activePrice.toFixed(2)} ${t('usd')}</span>
+          <div class="muted">${(activePrice * 3.67).toFixed(2)} ${t('aed')}</div>
         </div>
 
         <div>${status}</div>
 
         <div class="product-actions">
-          <a class="btn secondary product-details-link" href="./product.html?id=${encodeURIComponent(p.id)}">View Details</a>
+          <a class="btn secondary product-details-link" href="./product.html?id=${encodeURIComponent(p.id)}">${t('viewDetails')}</a>
           <button class="btn included" data-id="${Store.escAttr(p.id)}">${t('included')}</button>
 
           ${canBuy
@@ -488,9 +491,9 @@ window.Products = {
         : `<div class="card" style="text-align:center">No Included Content</div>`}
       ${pages > 1 ? `
         <div class="pagination">
-          ${page > 1 ? `<button class="mini included-page" data-p="${page-1}">Previous</button>` : ''}
+          ${page > 1 ? `<button class="mini included-page" data-p="${page-1}">${t('previous')}</button>` : ''}
           <span class="mini active">Page ${page} of ${pages}</span>
-          ${page < pages ? `<button class="mini included-page" data-p="${page+1}">Next</button>` : ''}
+          ${page < pages ? `<button class="mini included-page" data-p="${page+1}">${t('next')}</button>` : ''}
         </div>` : ''}
     `);
 

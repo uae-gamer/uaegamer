@@ -347,7 +347,7 @@ window.Store = {
       current.startsWith('receipt/') ? 'orders' :
       current;
 
-    const links = [['home', t('home')], ['contact', this.state.lang === 'ar' ? 'اتصل بنا' : 'Contact']];
+    const links = [['home', t('home')]];
 
     if (user) {
       links.push(
@@ -542,12 +542,12 @@ window.Store = {
         <h2>${t('login')}</h2>
 
         <div class="form-group">
-          <label>Email</label>
+          <label>${t('email')}</label>
           <input name="email" type="email" required autocomplete="email">
         </div>
 
         <div class="form-group">
-          <label>Password</label>
+          <label>${t('password')}</label>
           <input name="password" type="password" required autocomplete="current-password">
         </div>
 
@@ -566,7 +566,7 @@ window.Store = {
         location.hash = 'home';
         await this.route();
       } catch (e) {
-        this.alert(e.message || String(e), 'err');
+        this.alert(this.state.lang === 'ar' ? 'تعذر إكمال العملية. تحقق من البيانات وحاول مرة أخرى.' : (e.message || String(e)), 'err');
       }
     });
   },
@@ -583,35 +583,35 @@ window.Store = {
 
         <div class="bilingual">
           <div class="form-group">
-            <label>Username</label>
+            <label>${t('username')}</label>
             <input name="username" required>
           </div>
 
           <div class="form-group">
-            <label>Email</label>
+            <label>${t('email')}</label>
             <input name="email" type="email" required autocomplete="email">
           </div>
         </div>
 
         <div class="bilingual">
           <div class="form-group">
-            <label>First Name</label>
+            <label>${t('firstName')}</label>
             <input name="first_name">
           </div>
 
           <div class="form-group">
-            <label>Last Name</label>
+            <label>${t('lastName')}</label>
             <input name="last_name">
           </div>
         </div>
 
         <div class="form-group">
-          <label>Mobile Number</label>
+          <label>${t('mobile')}</label>
           <input name="mobile_number" type="tel" autocomplete="tel">
         </div>
 
         <div class="form-group">
-          <label>Password</label>
+          <label>${t('password')}</label>
           <input name="password" type="password" minlength="8" required autocomplete="new-password">
         </div>
 
@@ -624,11 +624,11 @@ window.Store = {
 
       try {
         await Auth.register(new FormData(event.currentTarget));
-        this.alert('Registration submitted. Check your email if confirmation is enabled.');
+        this.alert(this.state.lang === 'ar' ? 'تم إرسال التسجيل. تحقق من بريدك الإلكتروني إذا كان تأكيد البريد مفعلاً.' : 'Registration submitted. Check your email if confirmation is enabled.');
         location.hash = 'login';
         await this.route();
       } catch (e) {
-        this.alert(e.message || String(e), 'err');
+        this.alert(this.state.lang === 'ar' ? 'تعذر إكمال العملية. تحقق من البيانات وحاول مرة أخرى.' : (e.message || String(e)), 'err');
       }
     });
   },
@@ -647,44 +647,44 @@ window.Store = {
 
         <div class="bilingual">
           <div class="form-group">
-            <label>Username</label>
+            <label>${t('username')}</label>
             <input name="username" value="${this.escAttr(p.username || '')}" required>
           </div>
 
           <div class="form-group">
-            <label>Email</label>
+            <label>${t('email')}</label>
             <input value="${this.escAttr(this.state.user.email || '')}" disabled>
           </div>
         </div>
 
         <div class="bilingual">
           <div class="form-group">
-            <label>First Name</label>
+            <label>${t('firstName')}</label>
             <input name="first_name" value="${this.escAttr(p.first_name || '')}">
           </div>
 
           <div class="form-group">
-            <label>Last Name</label>
+            <label>${t('lastName')}</label>
             <input name="last_name" value="${this.escAttr(p.last_name || '')}">
           </div>
         </div>
 
         <div class="form-group">
-          <label>Mobile Number</label>
+          <label>${t('mobile')}</label>
           <input name="mobile_number" value="${this.escAttr(p.mobile_number || '')}">
         </div>
 
         <div class="form-group">
-          <label>Delivery Address</label>
+          <label>${t('deliveryAddress')}</label>
           <textarea name="delivery_address">${this.esc(p.delivery_address || '')}</textarea>
         </div>
 
         <div class="form-group">
-          <label>New Password (leave blank to keep existing)</label>
+          <label>${t('newPassword')}</label>
           <input name="new_password" type="password" autocomplete="new-password">
         </div>
 
-        <button class="btn primary">Save Changes</button>
+        <button class="btn primary">${t('saveChanges')}</button>
       </form>
     `);
 
@@ -693,10 +693,10 @@ window.Store = {
 
       try {
         await Auth.updateProfile(new FormData(event.currentTarget));
-        this.alert('Account updated.');
+        this.alert(this.state.lang === 'ar' ? 'تم تحديث الحساب.' : 'Account updated.');
         this.renderNav();
       } catch (e) {
-        this.alert(e.message || String(e), 'err');
+        this.alert(this.state.lang === 'ar' ? 'تعذر إكمال العملية. تحقق من البيانات وحاول مرة أخرى.' : (e.message || String(e)), 'err');
       }
     });
   },
@@ -708,6 +708,7 @@ window.Store = {
       .from('orders')
       .select('*,order_items(*)')
       .eq('user_id', this.state.user.id)
+      .is('deleted_at', null)
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -723,23 +724,23 @@ window.Store = {
         <div class="card">
           <div class="order-summary-head">
             <div>
-              <strong>Order #${this.esc(o.order_number)}</strong><br>
+              <strong>${t('order')} #${this.esc(o.order_number)}</strong><br>
               <span class="muted">${o.created_at ? new Date(o.created_at).toLocaleString() : ''}</span>
             </div>
             <div>${this.statusBadge(o.status)}</div>
           </div>
-          <div><strong>Total:</strong> ${Number(o.total_usd || 0).toFixed(2)} USD</div>
+          <div><strong>${t('total')}:</strong> ${Number(o.total_usd || 0).toFixed(2)} ${t('usd')}</div>
           <ul>
             ${(o.order_items || []).map(i => `
               <li>${this.esc(i.product_title)} × ${Number(i.quantity || 0)}
-              <br><small>PayPal Transaction ID: ${this.esc(i.paypal_transaction_id || 'N/A')}</small></li>
+              <br><small>${t('transactionId')}: ${this.esc(i.paypal_transaction_id || (this.state.lang === 'ar' ? 'غير متوفر' : 'N/A'))}</small></li>
             `).join('')}
           </ul>
           ${receiptStatuses.has(o.status)
-            ? `<button class="btn secondary receipt-btn" data-id="${o.id}">Print / View Receipt</button>`
-            : `<span class="muted">Receipt available after payment/order verification.</span>`}
+            ? `<button class="btn secondary receipt-btn" data-id="${o.id}">${t('viewReceipt')}</button>`
+            : `<span class="muted">${t('receiptAvailable')}</span>`}
         </div>
-      `).join('') || `<div class="card">You have not placed any orders yet.</div>`}
+      `).join('') || `<div class="card">${t('noOrders')}</div>`}
     `);
 
     document.querySelectorAll('.receipt-btn').forEach(btn => {
@@ -748,21 +749,24 @@ window.Store = {
   },
 
   statusBadge(status) {
+    const ar = this.state.lang === 'ar';
     const map = {
-      pending: ['Pending Verification','status-pending'],
-      processing: ['Processing','status-processing'],
-      confirmed: ['Verified / Confirmed','status-confirmed'],
-      shipped: ['Shipped for Delivery','status-shipped'],
-      delivered: ['Delivered / Completed','status-delivered'],
-      cancelled: ['Cancelled','status-cancelled'],
-      rejected: ['Unverified / Rejected','status-rejected']
+      pending: [ar ? 'بانتظار التحقق' : 'Pending Verification','status-pending'],
+      processing: [ar ? 'قيد المعالجة' : 'Processing','status-processing'],
+      confirmed: [ar ? 'تم التحقق / مؤكد' : 'Verified / Confirmed','status-confirmed'],
+      shipped: [ar ? 'تم الشحن للتوصيل' : 'Shipped for Delivery','status-shipped'],
+      delivered: [ar ? 'تم التوصيل / مكتمل' : 'Delivered / Completed','status-delivered'],
+      cancelled: [ar ? 'ملغي' : 'Cancelled','status-cancelled'],
+      rejected: [ar ? 'غير متحقق / مرفوض' : 'Unverified / Rejected','status-rejected']
     };
-    const pair = map[status] || [status || 'Unknown',''];
+    const pair = map[status] || [ar ? 'غير معروف' : (status || 'Unknown'),''];
     return `<span class="order-status-badge ${pair[1]}">${this.esc(pair[0])}</span>`;
   },
 
   async receiptView(orderId) {
     if (!this.state.user) return this.go('login');
+
+    const ar = this.state.lang === 'ar';
 
     const { data: order, error } = await db
       .from('orders')
@@ -770,8 +774,8 @@ window.Store = {
       .eq('id', orderId)
       .single();
 
-    if (error || !order) {
-      this.view('<div class="alert err">Receipt/order not found.</div>');
+    if (error || !order || (order.deleted_at && this.state.profile?.role !== 'admin')) {
+      this.view(`<div class="alert err">${ar ? 'لم يتم العثور على الإيصال أو الطلب.' : 'Receipt/order not found.'}</div>`);
       return;
     }
 
@@ -779,47 +783,55 @@ window.Store = {
       || this.state.profile?.role === 'admin';
 
     if (!allowed) {
-      this.view(`<div class="alert err">Payment receipt is unavailable because the order is not verified yet.</div>
-      <button id="receipt-back" class="btn">Back to Orders</button>`);
+      this.view(`<div class="alert err">${ar ? 'إيصال الدفع غير متاح لأن الطلب لم يتم التحقق منه بعد.' : 'Payment receipt is unavailable because the order is not verified yet.'}</div>
+      <button id="receipt-back" class="btn">${t('backOrders')}</button>`);
       document.getElementById('receipt-back').onclick = () => this.go('orders');
       return;
     }
 
     const items = order.order_items || [];
+    const currency = t('usd');
+
     this.view(`
       <div class="receipt-box">
         <div class="receipt-header">
-          <h2>${this.esc(localize(this.state.settings,'site_name') || 'StoreFront')}</h2>
-          <strong>OFFICIAL PAYMENT RECEIPT</strong>
+          <h2>${this.esc(localize(this.state.settings,'site_name') || (ar ? 'المتجر' : 'StoreFront'))}</h2>
+          <strong>${ar ? 'إيصال دفع رسمي' : 'OFFICIAL PAYMENT RECEIPT'}</strong>
         </div>
         <div class="receipt-meta">
-          <div><strong>Order #:</strong> ${this.esc(order.order_number)}<br>
-          <strong>Date & Time:</strong> ${order.created_at ? new Date(order.created_at).toLocaleString() : ''}<br>
-          <strong>Order Status:</strong> ${this.statusBadge(order.status)}</div>
-          <div><strong>Customer Name:</strong> ${this.esc((order.first_name||'')+' '+(order.last_name||''))}<br>
-          <strong>Email:</strong> ${this.esc(order.email||'')}<br>
-          <strong>Mobile:</strong> ${this.esc(order.mobile_number||'')}<br>
-          <strong>Delivery Address:</strong> ${this.esc(order.delivery_address||'')}</div>
+          <div><strong>${ar ? 'رقم الطلب' : 'Order #'}:</strong> ${this.esc(order.order_number)}<br>
+          <strong>${ar ? 'التاريخ والوقت' : 'Date and Time'}:</strong> ${order.created_at ? new Date(order.created_at).toLocaleString() : ''}<br>
+          <strong>${ar ? 'حالة الطلب' : 'Order Status'}:</strong> ${this.statusBadge(order.status)}</div>
+          <div><strong>${ar ? 'اسم العميل' : 'Customer Name'}:</strong> ${this.esc((order.first_name||'')+' '+(order.last_name||''))}<br>
+          <strong>${t('email')}:</strong> ${this.esc(order.email||'')}<br>
+          <strong>${ar ? 'الهاتف المتحرك' : 'Mobile'}:</strong> ${this.esc(order.mobile_number||'')}<br>
+          <strong>${t('deliveryAddress')}:</strong> ${this.esc(order.delivery_address||'')}</div>
         </div>
         <div class="table-wrap"><table>
-          <thead><tr><th>Item Title</th><th>Unit Price</th><th>Quantity</th><th>Subtotal</th><th>PayPal Transaction ID</th></tr></thead>
+          <thead><tr>
+            <th>${ar ? 'اسم المنتج' : 'Item Title'}</th>
+            <th>${ar ? 'سعر الوحدة' : 'Unit Price'}</th>
+            <th>${t('quantity')}</th>
+            <th>${t('subtotal')}</th>
+            <th>${t('transactionId')}</th>
+          </tr></thead>
           <tbody>${items.map(i => `
             <tr><td>${this.esc(i.product_title||'')}</td>
-            <td>${Number(i.unit_price_usd||0).toFixed(2)} USD</td>
+            <td>${Number(i.unit_price_usd||0).toFixed(2)} ${currency}</td>
             <td>${Number(i.quantity||0)}</td>
-            <td>${(Number(i.unit_price_usd||0)*Number(i.quantity||0)).toFixed(2)} USD</td>
-            <td>${this.esc(i.paypal_transaction_id||'N/A')}</td></tr>`).join('')}</tbody>
+            <td>${(Number(i.unit_price_usd||0)*Number(i.quantity||0)).toFixed(2)} ${currency}</td>
+            <td>${this.esc(i.paypal_transaction_id||(ar?'غير متوفر':'N/A'))}</td></tr>`).join('')}</tbody>
         </table></div>
         <div class="receipt-totals">
-          <div>Delivery fee: ${Number(order.delivery_fee_usd||0).toFixed(2)} USD</div>
-          <div>Payment gateway fee: ${Number(order.payment_gateway_fee_usd||0).toFixed(2)} USD</div>
-          <div>VAT: ${Number(order.vat_usd||0).toFixed(2)} USD</div>
-          <div class="receipt-grand-total">Total: ${Number(order.total_usd||0).toFixed(2)} USD</div>
+          <div>${t('deliveryFee')}: ${Number(order.delivery_fee_usd||0).toFixed(2)} ${currency}</div>
+          <div>${t('gatewayFee')}: ${Number(order.payment_gateway_fee_usd||0).toFixed(2)} ${currency}</div>
+          <div>${t('vat')}: ${Number(order.vat_usd||0).toFixed(2)} ${currency}</div>
+          <div class="receipt-grand-total">${t('total')}: ${Number(order.total_usd||0).toFixed(2)} ${currency}</div>
         </div>
       </div>
       <div class="receipt-actions">
-        <button id="print-receipt" class="btn secondary">Print Receipt</button>
-        <button id="receipt-back" class="btn">Back to Orders</button>
+        <button id="print-receipt" class="btn secondary">${t('printReceipt')}</button>
+        <button id="receipt-back" class="btn">${t('backOrders')}</button>
       </div>
     `);
 
@@ -828,9 +840,11 @@ window.Store = {
   },
 
   contactView() {
+    const ar = this.state.lang === 'ar';
+
     if (!this.state.user) {
-      this.view(`<div class="card"><h2>${this.state.lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</h2>
-      <p>${this.state.lang === 'ar' ? 'يجب تسجيل الدخول لإرسال رسالة.' : 'Please log in to submit a contact message.'}</p>
+      this.view(`<div class="card"><h2>${t('contactUs')}</h2>
+      <p>${ar ? 'يجب تسجيل الدخول لإرسال رسالة.' : 'Please log in to submit a contact message.'}</p>
       <button id="contact-login" class="btn primary">${t('login')}</button></div>`);
       document.getElementById('contact-login').onclick = () => this.go('login');
       return;
@@ -838,19 +852,21 @@ window.Store = {
 
     this.view(`
       <form id="contact-form" class="panel">
-        <h2>${this.state.lang === 'ar' ? 'اتصل بنا' : 'Contact Us'}</h2>
-        <div class="form-group"><label>Email Address</label>
-          <input name="email" type="email" value="${this.escAttr(this.state.user.email||'')}" required></div>
-        <div class="form-group"><label>Message Type</label>
+        <h2>${t('contactUs')}</h2>
+        <div class="form-group">
+          <label>${t('emailAddress')} <small class="muted">— ${t('emailReplyNote')}</small></label>
+          <input name="email" type="email" value="${this.escAttr(this.state.user.email||'')}" required>
+        </div>
+        <div class="form-group"><label>${t('messageType')}</label>
           <select name="type" required>
-            <option value="Order Related">Order Related</option>
-            <option value="Complain">Complain</option>
-            <option value="Feedback">Feedback</option>
-            <option value="Question">Question</option>
+            <option value="Order Related">${t('orderRelated')}</option>
+            <option value="Complain">${t('complaint')}</option>
+            <option value="Feedback">${t('feedback')}</option>
+            <option value="Question">${t('question')}</option>
           </select></div>
-        <div class="form-group"><label>Your Message</label>
+        <div class="form-group"><label>${t('yourMessage')}</label>
           <textarea name="message" rows="6" required></textarea></div>
-        <button class="btn primary">Submit Message</button>
+        <button class="btn primary">${t('submitMessage')}</button>
       </form>`);
 
     document.getElementById('contact-form').onsubmit = async event => {
@@ -866,7 +882,7 @@ window.Store = {
       });
 
       if (error) {
-        this.alert('Unable to send message: ' + error.message, 'err');
+        this.alert(ar ? 'تعذر إرسال الرسالة.' : 'Unable to send message: ' + error.message, 'err');
         return;
       }
 
@@ -874,7 +890,7 @@ window.Store = {
       const emailField = form.querySelector('[name="email"]');
       if (emailField) emailField.value = this.state.user.email || '';
 
-      this.alert('Your message has been sent successfully.');
+      this.alert(ar ? 'تم إرسال رسالتك بنجاح.' : 'Your message has been sent successfully.');
     };
   },
 
@@ -882,82 +898,47 @@ window.Store = {
     const host = document.getElementById('footer-links');
     if (!host) return;
 
-    const now = Date.now();
-    if (now - this.footerCache.at < 120000 && (this.footerCache.pages.length || this.footerCache.guides.length)) {
-      const entries = [
-        ...this.footerCache.pages.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'pages' })),
-        ...this.footerCache.guides.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'guide_pages' }))
-      ];
-
-      const hrefFor = row => {
-        const key = row.page_key || row.slug || '';
-        if (row._source === 'pages') {
-          if (key === 'terms') return './terms.html';
-          if (key === 'privacy') return './privacy.html';
-          if (key === 'delivery') return './delivery.html';
-        }
-        if (row._source === 'guide_pages') {
-          const m = /^guide_(\\d+)$/.exec(key);
-          if (m) return `./guide-${m[1]}.html`;
-        }
-        return `./content.html?source=${encodeURIComponent(row._source)}&id=${encodeURIComponent(row.id)}`;
-      };
-
-      host.innerHTML = entries.map(row => `
-        <a class="btn footer-page" href="${hrefFor(row)}">${this.esc(localize(row,'title'))}</a>
-      `).join('');
-      return;
-    }
-
     const safeLoad = async table => {
-      try {
-        const { data, error } = await db.from(table).select('*');
-        if (error) throw error;
-        return data || [];
-      } catch (e) {
-        console.error(`${table} footer load failed:`, e);
+      const { data, error } = await db.from(table).select('*');
+      if (error) {
+        console.error(error);
         return [];
       }
+      return data || [];
     };
 
-    const [pages, guides] = await Promise.all([
-      safeLoad('pages'),
-      safeLoad('guide_pages')
-    ]);
+    let pages = this.footerCache.pages;
+    let guides = this.footerCache.guides;
 
-    this.footerCache = { at: Date.now(), pages, guides };
+    if (Date.now() - this.footerCache.at >= 120000 || (!pages.length && !guides.length)) {
+      [pages, guides] = await Promise.all([safeLoad('pages'), safeLoad('guide_pages')]);
+      this.footerCache = { at: Date.now(), pages, guides };
+    }
+
+    const pageMap = new Map(pages.filter(x => x.enabled !== false).map(x => [x.page_key, x]));
+    const guideMap = new Map(guides.filter(x => x.enabled !== false).map(x => [x.page_key, x]));
 
     const entries = [
-      ...pages.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'pages' })),
-      ...guides.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'guide_pages' }))
-    ];
+      pageMap.get('terms') && { row:pageMap.get('terms'), href:'./terms.html', fallback:t('terms') },
+      pageMap.get('privacy') && { row:pageMap.get('privacy'), href:'./privacy.html', fallback:t('privacy') },
+      pageMap.get('delivery') && { row:pageMap.get('delivery'), href:'./delivery.html', fallback:t('delivery') },
+      { row:null, href:'#contact', fallback:t('contactUs') },
+      guideMap.get('guide_1') && { row:guideMap.get('guide_1'), href:'./custom_page_a.html', fallback:t('page1') },
+      guideMap.get('guide_2') && { row:guideMap.get('guide_2'), href:'./custom_page_b.html', fallback:t('page2') },
+      guideMap.get('guide_3') && { row:guideMap.get('guide_3'), href:'./custom_page_c.html', fallback:t('page3') },
+      guideMap.get('guide_4') && { row:guideMap.get('guide_4'), href:'./custom_page_d.html', fallback:t('page4') }
+    ].filter(Boolean);
 
-    const hrefFor = row => {
-      const key = row.page_key || row.slug || '';
-
-      if (row._source === 'pages') {
-        if (key === 'terms') return './terms.html';
-        if (key === 'privacy') return './privacy.html';
-        if (key === 'delivery') return './delivery.html';
-      }
-
-      if (row._source === 'guide_pages') {
-        const m = /^guide_(\d+)$/.exec(key);
-        if (m) return `./guide-${m[1]}.html`;
-      }
-
-      return `./content.html?source=${encodeURIComponent(row._source)}&id=${encodeURIComponent(row.id)}`;
-    };
-
-    host.innerHTML = entries.map(row => `
-      <a class="btn footer-page" href="${hrefFor(row)}">
-        ${this.esc(localize(row,'title'))}
-      </a>
-    `).join('');
+    host.innerHTML = entries.map(entry => {
+      const label = entry.row ? (localize(entry.row,'title') || entry.fallback) : entry.fallback;
+      return `<a class="btn footer-page" href="${entry.href}">${this.esc(label)}</a>`;
+    }).join('');
   },
 
   async start() {
     document.getElementById('year').textContent = new Date().getFullYear();
+    const powered = document.getElementById('powered-by');
+    if (powered) powered.textContent = t('powered');
 
     // Track meaningful unsaved edits without interfering with background-tab focus changes.
     let formDirty = false;

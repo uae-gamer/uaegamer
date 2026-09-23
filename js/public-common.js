@@ -15,6 +15,11 @@ window.PublicSite = {
 
   escAttr(v) { return this.esc(v); },
 
+  ui(en, ar) {
+    return this.state.lang === 'ar' ? ar : en;
+  },
+
+
   safeUrl(value, { image = false } = {}) {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
@@ -99,8 +104,8 @@ window.PublicSite = {
 
   localized(row, field) {
     if (!row) return '';
-    if (this.state.lang === 'ar') return row[`${field}_ar`] || row[field] || '';
-    return row[field] || row[`${field}_ar`] || '';
+    if (this.state.lang === 'ar') return row[`${field}_ar`] || '';
+    return row[field] || '';
   },
 
   async loadSettings() {
@@ -170,9 +175,15 @@ window.PublicSite = {
 
     document.querySelectorAll('[data-public-lang]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.publicLang === this.state.lang);
+      btn.textContent = btn.dataset.publicLang === 'en'
+        ? (this.state.lang === 'ar' ? 'الإنجليزية' : 'English')
+        : 'العربية';
     });
     document.querySelectorAll('[data-public-theme]').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.publicTheme === this.state.theme);
+      btn.textContent = btn.dataset.publicTheme === 'light'
+        ? this.ui('Light','فاتح')
+        : this.ui('Dark','داكن');
     });
   },
 
@@ -202,7 +213,10 @@ window.PublicSite = {
 
     if (source === 'guide_pages') {
       const m = /^guide_(\d+)$/.exec(key);
-      if (m) return `./guide-${m[1]}.html`;
+      if (m) {
+        const files = { '1':'custom_page_a.html', '2':'custom_page_b.html', '3':'custom_page_c.html', '4':'custom_page_d.html' };
+        return `./${files[m[1]] || 'content.html'}`;
+      }
     }
 
     return `./content.html?source=${encodeURIComponent(source)}&id=${encodeURIComponent(row.id)}`;
@@ -241,8 +255,7 @@ window.PublicSite = {
       : {home:'Home',contact:'Contact',cart:'Cart',orders:'My Orders',account:'Manage Account',admin:'Admin Control',logout:'Logout',login:'Log In',register:'Register'};
 
     const links = [
-      ['./index.html#home', labels.home],
-      ['./index.html#contact', labels.contact]
+      ['./index.html#home', labels.home]
     ];
 
     if (user) {
@@ -285,18 +298,32 @@ window.PublicSite = {
     };
 
     const [pages,guides] = await Promise.all([get('pages'),get('guide_pages')]);
-    const entries = [
-      ...pages.filter(x => x.enabled !== false).map(x => ({...x,_source:'pages'})),
-      ...guides.filter(x => x.enabled !== false).map(x => ({...x,_source:'guide_pages'}))
-    ];
+    const pageMap = new Map(pages.filter(x => x.enabled !== false).map(x => [x.page_key,x]));
+    const guideMap = new Map(guides.filter(x => x.enabled !== false).map(x => [x.page_key,x]));
 
-    host.innerHTML = entries.map(x => `
-      <a class="btn" href="${this.pageHref(x,x._source)}">${this.esc(this.localized(x,'title'))}</a>
-    `).join('');
+    const entries = [
+      pageMap.get('terms') && {row:pageMap.get('terms'),href:'./terms.html',fallback:this.ui('Terms of Use','شروط الاستخدام')},
+      pageMap.get('privacy') && {row:pageMap.get('privacy'),href:'./privacy.html',fallback:this.ui('Privacy Policy','سياسة الخصوصية')},
+      pageMap.get('delivery') && {row:pageMap.get('delivery'),href:'./delivery.html',fallback:this.ui('Delivery Policy','سياسة التوصيل')},
+      {row:null,href:'./index.html#contact',fallback:this.ui('Contact Us','اتصل بنا')},
+      guideMap.get('guide_1') && {row:guideMap.get('guide_1'),href:'./custom_page_a.html',fallback:this.ui('Page 1','الصفحة 1')},
+      guideMap.get('guide_2') && {row:guideMap.get('guide_2'),href:'./custom_page_b.html',fallback:this.ui('Page 2','الصفحة 2')},
+      guideMap.get('guide_3') && {row:guideMap.get('guide_3'),href:'./custom_page_c.html',fallback:this.ui('Page 3','الصفحة 3')},
+      guideMap.get('guide_4') && {row:guideMap.get('guide_4'),href:'./custom_page_d.html',fallback:this.ui('Page 4','الصفحة 4')}
+    ].filter(Boolean);
+
+    host.innerHTML = entries.map(entry => {
+      const label = entry.row ? (this.localized(entry.row,'title') || entry.fallback) : entry.fallback;
+      return `<a class="btn" href="${entry.href}">${this.esc(label)}</a>`;
+    }).join('');
   },
 
   async init() {
     document.getElementById('public-year').textContent = new Date().getFullYear();
+    const rights = document.getElementById('public-rights');
+    if (rights) rights.textContent = this.ui('All rights reserved.','جميع الحقوق محفوظة.');
+    const powered = document.getElementById('public-powered-by');
+    if (powered) powered.textContent = this.ui('Powered by Supabase – Hosted on GitHub Pages','مدعوم بواسطة Supabase – مستضاف على GitHub Pages');
     this.wireControls();
 
     try {

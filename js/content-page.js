@@ -22,12 +22,12 @@ window.ContentPage = {
 
     const title = PublicSite.localized(data,'title');
     const html = PublicSite.state.lang === 'ar'
-      ? (data.content_ar || data.content || '')
-      : (data.content || data.content_ar || '');
+      ? (data.content_ar || '<p>المحتوى العربي غير متوفر حالياً.</p>')
+      : (data.content || '');
 
     document.getElementById('public-page-title').textContent = title;
     document.getElementById('public-page-content').innerHTML = PublicSite.sanitizeHtml(html);
-    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || 'StoreFront'}`;
+    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || PublicSite.ui('StoreFront','المتجر')}`;
 
     const meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute('content', title);
@@ -40,7 +40,7 @@ window.ContentPage = {
     } catch (e) {
       console.error(e);
       document.getElementById('public-page-content').innerHTML =
-        `<div class="alert err">${PublicSite.esc(e.message || e)}</div>`;
+        `<div class="alert err">${PublicSite.esc(PublicSite.state.lang === 'ar' ? 'تعذر تحميل الصفحة.' : (e.message || e))}</div>`;
       document.documentElement.classList.add('app-ready');
     }
   }

@@ -11,7 +11,7 @@ window.ProductPage = {
 
   async loadProduct() {
     const id = new URLSearchParams(location.search).get('id');
-    if (!id) throw new Error('Product ID is missing.');
+    if (!id) throw new Error(PublicSite.ui('Product ID is missing.','معرّف المنتج غير موجود.'));
 
     const [{data:product,error:pError},{data:images,error:iError}] = await Promise.all([
       db.from('products').select('*').eq('id',id).eq('active',true).single(),
@@ -37,9 +37,9 @@ window.ProductPage = {
 
   statusHtml() {
     const p = this.product;
-    if (p.status === 'coming_soon') return '<span class="stock-coming">Coming Soon</span>';
-    if (p.status === 'out_of_stock' || Number(p.stock_quantity||0) <= 0) return '<span class="stock-out">Out of Stock</span>';
-    return `<span class="stock-in">In Stock (${Number(p.stock_quantity||0)})</span>`;
+    if (p.status === 'coming_soon') return `<span class="stock-coming">${PublicSite.ui('Coming Soon','قريباً')}</span>`;
+    if (p.status === 'out_of_stock' || Number(p.stock_quantity||0) <= 0) return `<span class="stock-out">${PublicSite.ui('Out of Stock','نفد المخزون')}</span>`;
+    return `<span class="stock-in">${PublicSite.ui('In Stock','متوفر')} (${Number(p.stock_quantity||0)})</span>`;
   },
 
   render() {
@@ -51,7 +51,7 @@ window.ProductPage = {
     const description = PublicSite.localized(p,'description');
     const canBuy = p.status === 'in_stock' && Number(p.stock_quantity||0) > 0;
 
-    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || 'StoreFront'}`;
+    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || PublicSite.ui('StoreFront','المتجر')}`;
     const meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute('content', String(description||title).slice(0,155));
 
@@ -61,7 +61,7 @@ window.ProductPage = {
           <div class="product-detail-stage">
             ${this.images.length
               ? `<img id="product-detail-image" src="${PublicSite.escAttr(this.images[0].image_url)}" alt="${PublicSite.escAttr(title)}">`
-              : '<div class="muted">No image</div>'}
+              : `<div class="muted">${PublicSite.ui('No image','لا توجد صورة')}</div>`}
             ${this.images.length > 1 ? `
               <button id="detail-prev" class="gallery-arrow gallery-prev">‹</button>
               <button id="detail-next" class="gallery-arrow gallery-next">›</button>
@@ -80,21 +80,22 @@ window.ProductPage = {
           <h1>${PublicSite.esc(title)}</h1>
           <div class="description product-long-description">${PublicSite.esc(description)}</div>
 
-          ${p.category ? `<p><strong>Category:</strong> ${PublicSite.esc(PublicSite.localized(p.category,'name'))}</p>` : ''}
-          ${p.type ? `<p><strong>Type:</strong> ${PublicSite.esc(PublicSite.localized(p.type,'name'))}</p>` : ''}
+          ${p.category ? `<p><strong>${PublicSite.ui('Category','التصنيف')}:</strong> ${PublicSite.esc(PublicSite.localized(p.category,'name'))}</p>` : ''}
+          ${p.type ? `<p><strong>${PublicSite.ui('Type','النوع')}:</strong> ${PublicSite.esc(PublicSite.localized(p.type,'name'))}</p>` : ''}
 
           <div class="price product-detail-price">
-            ${discounted > 0 && discounted < price ? `<span class="old-price">${price.toFixed(2)} USD</span><br>` : ''}
-            ${active.toFixed(2)} USD
-            <div class="muted">Equals approximately ${(active*3.67).toFixed(2)} AED</div>
+            ${discounted > 0 && discounted < price ? `<span class="old-price">${price.toFixed(2)} ${PublicSite.ui('USD','دولار أمريكي')}</span><br>` : ''}
+            ${active.toFixed(2)} ${PublicSite.ui('USD','دولار أمريكي')}
+            <div class="muted">${PublicSite.ui('Equals approximately','يعادل تقريباً')} ${(active*3.67).toFixed(2)} ${PublicSite.ui('AED','درهم إماراتي')}</div>
           </div>
 
           <p>${this.statusHtml()}</p>
 
           <div class="product-actions">
-            <button id="detail-included" class="btn">Included Content</button>
-            ${canBuy ? '<button id="detail-add" class="btn primary">Add to Cart</button>' : '<button class="btn" disabled>Unavailable</button>'}
-            <a class="btn secondary" href="./index.html#home">Back to Store</a>
+            <button id="detail-included" class="btn">${PublicSite.ui('Included Content','المحتويات المشمولة')}</button>
+            ${canBuy ? `<button id="detail-add" class="btn primary">${PublicSite.ui('Add to Cart','أضف إلى السلة')}</button>` : `<button class="btn" disabled>${PublicSite.ui('Unavailable','غير متاح')}</button>`}
+            <a class="btn secondary back-store" href="./index.html#home">${PublicSite.ui('Back to Store','العودة إلى المتجر')}</a>
+            <button id="share-product" class="btn secondary">${PublicSite.ui('Share Product','مشاركة المنتج')}</button>
           </div>
 
           <div id="product-action-note"></div>
@@ -102,7 +103,7 @@ window.ProductPage = {
       </div>
 
       <section id="detail-included-section" class="product-included-section hidden">
-        <h2>Included Content</h2>
+        <h2>${PublicSite.ui('Included Content','المحتويات المشمولة')}</h2>
         <div id="detail-included-body"></div>
       </section>
     `;
@@ -130,6 +131,29 @@ window.ProductPage = {
     });
     document.getElementById('detail-included')?.addEventListener('click', () => this.loadIncluded(1));
     document.getElementById('detail-add')?.addEventListener('click', () => this.addToCart());
+    document.getElementById('share-product')?.addEventListener('click', () => this.shareProduct());
+  },
+
+  async shareProduct() {
+    const title = PublicSite.localized(this.product,'title');
+    const url = location.href;
+
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text: title, url });
+        return;
+      } catch (e) {
+        if (e?.name === 'AbortError') return;
+      }
+    }
+
+    try {
+      await navigator.clipboard.writeText(url);
+      document.getElementById('product-action-note').innerHTML =
+        `<div class="alert ok">${PublicSite.ui('Product link copied.','تم نسخ رابط المنتج.')}</div>`;
+    } catch (_) {
+      prompt(PublicSite.ui('Copy Product Link','نسخ رابط المنتج'), url);
+    }
   },
 
   async loadIncluded(page=1) {
@@ -155,13 +179,13 @@ window.ProductPage = {
     const pages = Math.max(1,Math.ceil(total/per));
 
     document.getElementById('detail-included-body').innerHTML = `
-      <p class="muted">${total.toLocaleString()} entries</p>
+      <p class="muted">${total.toLocaleString()} ${PublicSite.ui('entries','عنصر')}</p>
       ${total ? `<ul class="included-list">${(data||[]).map(x => `<li>${PublicSite.esc(x.name||'')}</li>`).join('')}</ul>`
-              : '<div class="card">No Included Content has been added.</div>'}
+              : `<div class="card">${PublicSite.ui('No Included Content has been added.','لم تتم إضافة محتويات مشمولة.')}</div>`}
       ${pages > 1 ? `<div class="pagination">
-        ${page>1 ? `<button class="mini detail-content-page" data-p="${page-1}">Previous</button>` : ''}
-        <span class="mini active">Page ${page} of ${pages}</span>
-        ${page<pages ? `<button class="mini detail-content-page" data-p="${page+1}">Next</button>` : ''}
+        ${page>1 ? `<button class="mini detail-content-page" data-p="${page-1}">${PublicSite.ui('Previous','السابق')}</button>` : ''}
+        <span class="mini active">${PublicSite.ui('Page','الصفحة')} ${page} ${PublicSite.ui('of','من')} ${pages}</span>
+        ${page<pages ? `<button class="mini detail-content-page" data-p="${page+1}">${PublicSite.ui('Next','التالي')}</button>` : ''}
       </div>` : ''}
     `;
 
@@ -187,7 +211,7 @@ window.ProductPage = {
     localStorage.setItem(key,JSON.stringify(cart));
 
     document.getElementById('product-action-note').innerHTML = `
-      <div class="alert ok">Item added to cart. <a href="./index.html#cart">Open Cart</a></div>
+      <div class="alert ok">${PublicSite.ui('Item added to cart.','تمت إضافة المنتج إلى السلة.')} <a href="./index.html#cart">${PublicSite.ui('Open Cart','فتح السلة')}</a></div>
     `;
   },
 
@@ -197,7 +221,7 @@ window.ProductPage = {
       await this.loadProduct();
     } catch (e) {
       console.error(e);
-      document.getElementById('product-page').innerHTML = `<div class="alert err">${PublicSite.esc(e.message||e)}</div>`;
+      document.getElementById('product-page').innerHTML = `<div class="alert err">${PublicSite.esc(PublicSite.state.lang === 'ar' ? 'تعذر تحميل صفحة المنتج.' : (e.message||e))}</div>`;
       document.documentElement.classList.add('app-ready');
     }
   }

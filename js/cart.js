@@ -41,7 +41,7 @@ window.Cart = {
   add(id) {
     if (!Store.state.user) {
       Store.go('login');
-      Store.alert('Please log in before using the shopping cart.', 'err');
+      Store.alert(Store.state.lang === 'ar' ? 'يرجى تسجيل الدخول قبل استخدام سلة التسوق.' : 'Please log in before using the shopping cart.', 'err');
       return;
     }
 
@@ -55,7 +55,7 @@ window.Cart = {
     );
 
     this.save(cart);
-    Store.alert('Item added to cart.');
+    Store.alert(Store.state.lang === 'ar' ? 'تمت إضافة المنتج إلى السلة.' : 'Item added to cart.');
   },
 
   async ensureProducts() {
@@ -73,7 +73,7 @@ window.Cart = {
 
       if (error) {
         console.error(error);
-        Store.alert('Unable to load one or more cart items: ' + error.message, 'err');
+        Store.alert(Store.state.lang === 'ar' ? 'تعذر تحميل منتج أو أكثر من السلة.' : 'Unable to load one or more cart items: ' + error.message, 'err');
       } else {
         for (const p of (data || [])) existing.set(p.id, p);
       }
@@ -93,12 +93,14 @@ window.Cart = {
   },
 
   async render() {
+    const ar = Store.state.lang === 'ar';
+
     if (!Store.state.user) {
       Store.view(`
         <div class="alert err">
-          Access Restricted. You must be logged in as a registered user to view and manage your shopping cart.
+          ${ar ? 'الوصول مقيّد. يجب تسجيل الدخول كمستخدم مسجل لعرض سلة التسوق وإدارتها.' : 'Access Restricted. You must be logged in as a registered user to view and manage your shopping cart.'}
         </div>
-        <p><button id="cart-login" class="btn">Log In Here</button></p>
+        <p><button id="cart-login" class="btn">${t('login')}</button></p>
       `);
       document.getElementById('cart-login')?.addEventListener('click', () => Store.go('login'));
       return;
@@ -108,60 +110,45 @@ window.Cart = {
     const rows = this.rows();
 
     if (!rows.length) {
-      Store.view('<div class="card">Your shopping cart is empty.</div>');
+      Store.view(`<div class="card">${ar ? 'سلة التسوق فارغة.' : 'Your shopping cart is empty.'}</div>`);
       return;
     }
 
     let total = 0;
-    for (const [product, qty] of rows) {
-      total += Products.price(product) * qty;
-    }
+    for (const [product, qty] of rows) total += Products.price(product) * qty;
 
     Store.view(`
-      <h2>Shopping Cart</h2>
-
+      <h2>${t('shoppingCart')}</h2>
       <div class="table-wrap">
         <table>
-          <thead>
-            <tr>
-              <th>Item</th>
-              <th>Price</th>
-              <th>Quantity</th>
-              <th>Subtotal</th>
-              <th>Action</th>
-            </tr>
-          </thead>
+          <thead><tr>
+            <th>${ar ? 'المنتج' : 'Item'}</th>
+            <th>${t('price')}</th>
+            <th>${t('quantity')}</th>
+            <th>${t('subtotal')}</th>
+            <th>${t('action')}</th>
+          </tr></thead>
           <tbody>
             ${rows.map(([p, qty]) => `
               <tr>
                 <td>${Store.esc(localize(p,'title'))}</td>
-                <td>${Products.price(p).toFixed(2)} USD</td>
-                <td>
-                  <input class="qty" data-id="${p.id}" type="number"
-                         min="0" max="${Number(p.stock_quantity||0)}" value="${qty}"
-                         style="width:80px">
-                </td>
-                <td>${(Products.price(p)*qty).toFixed(2)} USD</td>
-                <td>
-                  <button class="btn danger remove" data-id="${p.id}">Remove</button>
-                </td>
-              </tr>
-            `).join('')}
-
+                <td>${Products.price(p).toFixed(2)} ${t('usd')}</td>
+                <td><input class="qty" data-id="${p.id}" type="number" min="0"
+                           max="${Number(p.stock_quantity||0)}" value="${qty}" style="width:80px"></td>
+                <td>${(Products.price(p)*qty).toFixed(2)} ${t('usd')}</td>
+                <td><button class="btn danger remove" data-id="${p.id}">${t('remove')}</button></td>
+              </tr>`).join('')}
             <tr>
-              <th colspan="3" style="text-align:end">Item Total:</th>
-              <th colspan="2">${total.toFixed(2)} USD</th>
+              <th colspan="3" style="text-align:end">${t('itemTotal')}:</th>
+              <th colspan="2">${total.toFixed(2)} ${t('usd')}</th>
             </tr>
           </tbody>
         </table>
       </div>
-
-      <p class="muted">
-        The current total reflects item selling prices. Delivery, payment-gateway fees and VAT
-        remain 0 until explicit calculation rules are configured.
-      </p>
-
-      <button id="continue-checkout" class="btn success">Continue to Checkout</button>
+      <p class="muted">${ar
+        ? 'يعكس الإجمالي الحالي أسعار بيع المنتجات. تبقى رسوم التوصيل ورسوم بوابة الدفع وضريبة القيمة المضافة صفراً حتى يتم تحديد قواعد احتسابها.'
+        : 'The current total reflects item selling prices. Delivery, payment-gateway fees and VAT remain 0 until explicit calculation rules are configured.'}</p>
+      <button id="continue-checkout" class="btn success">${t('continueCheckout')}</button>
     `);
 
     document.querySelectorAll('.qty').forEach(input => {
@@ -169,10 +156,8 @@ window.Cart = {
         const cart = this.get();
         const max = Number(input.max || 0);
         const qty = Math.max(0, Math.min(Number(input.value)||0, max));
-
         if (qty) cart[input.dataset.id] = qty;
         else delete cart[input.dataset.id];
-
         this.save(cart);
         this.render();
       };
@@ -191,6 +176,7 @@ window.Cart = {
   },
 
   async renderCheckout() {
+    const ar = Store.state.lang === 'ar';
     if (!Store.state.user) return Store.go('login');
 
     await this.ensureProducts();
@@ -201,9 +187,9 @@ window.Cart = {
     if (missingPayPal.length) {
       Store.view(`
         <div class="alert err">
-          Checkout cannot continue because one or more products do not have a PayPal payment link configured.
+          ${ar ? 'لا يمكن متابعة الدفع لأن منتجاً واحداً أو أكثر لا يحتوي على رابط دفع PayPal.' : 'Checkout cannot continue because one or more products do not have a PayPal payment link configured.'}
         </div>
-        <button id="back-cart" class="btn secondary">Back to Cart</button>
+        <button id="back-cart" class="btn secondary">${t('backCart')}</button>
       `);
       document.getElementById('back-cart').onclick = () => Store.go('cart');
       return;
@@ -217,46 +203,47 @@ window.Cart = {
     Store.view(`
       <button id="back-cart" class="btn secondary">← Back to Cart</button>
 
-      <h2>Delivery and Payment Information</h2>
+      <h2>${t('deliveryPayment')}</h2>
 
       <form id="checkout-form" class="panel">
         <div class="bilingual">
           <div class="form-group">
-            <label>First Name <span class="req-star">*</span></label>
+            <label>${t('firstName')} <span class="req-star">*</span></label>
             <input name="first_name" value="${Store.escAttr(profile.first_name||'')}" required>
           </div>
 
           <div class="form-group">
-            <label>Last Name <span class="req-star">*</span></label>
+            <label>${t('lastName')} <span class="req-star">*</span></label>
             <input name="last_name" value="${Store.escAttr(profile.last_name||'')}" required>
           </div>
         </div>
 
         <div class="form-group">
-          <label>Email Address <span class="req-star">*</span></label>
+          <label>${t('emailAddress')} <span class="req-star">*</span></label>
           <input name="email" type="email" value="${Store.escAttr(email)}" required>
         </div>
 
         <div class="form-group">
-          <label>Contact Mobile <span class="req-star">*</span></label>
+          <label>${t('contactMobile')} <span class="req-star">*</span></label>
           <input name="mobile_number" value="${Store.escAttr(profile.mobile_number||'')}" required>
         </div>
 
         <div class="form-group">
-          <label>Delivery Address <span class="req-star">*</span></label>
+          <label>${t('deliveryAddress')} <span class="req-star">*</span></label>
           <textarea name="delivery_address" rows="3" required>${Store.esc(profile.delivery_address||'')}</textarea>
         </div>
 
         <div class="form-group">
-          <label>Customer Notes</label>
+          <label>${t('customerNotes')}</label>
           <textarea name="customer_notes" rows="3"></textarea>
         </div>
 
-        <h3>PayPal Verification</h3>
+        <h3>${t('paypalVerification')}</h3>
 
         <p class="description">
-          Please pay for each unique item using its dedicated PayPal button,
-          then enter the corresponding Transaction ID.
+          ${ar
+            ? 'يرجى دفع قيمة كل منتج فريد باستخدام زر PayPal المخصص له، ثم إدخال معرّف المعاملة المقابل.'
+            : 'Please pay for each unique item using its dedicated PayPal button, then enter the corresponding Transaction ID.'}
         </p>
 
         ${rows.map(([p,qty]) => `
@@ -270,17 +257,17 @@ window.Cart = {
                 target="_blank"
                 rel="noopener noreferrer"
                 data-id="${p.id}">
-                Pay via PayPal
+                ${t('payPaypal')}
               </a>
             </div>
 
             <div class="description">
-              Item subtotal: ${(Products.price(p)*qty).toFixed(2)} USD
+              ${ar ? 'المجموع الفرعي للمنتج' : 'Item subtotal'}: ${(Products.price(p)*qty).toFixed(2)} ${t('usd')}
             </div>
 
             <div class="form-group">
               <label>
-                PayPal Transaction ID for ${Store.esc(localize(p,'title'))}
+                ${t('transactionId')} — ${Store.esc(localize(p,'title'))}
                 <span class="req-star">*</span>
               </label>
 
@@ -288,7 +275,7 @@ window.Cart = {
                 class="paypal-tx-input"
                 data-id="${p.id}"
                 name="tx_${p.id}"
-                placeholder="e.g. 9XX12345YY67890ZZ"
+                placeholder="${ar ? 'مثال: 9XX12345YY67890ZZ' : 'e.g. 9XX12345YY67890ZZ'}"
                 autocomplete="off"
                 value="${Store.escAttr(savedState.tx?.[p.id] || '')}"
                 required>
@@ -296,30 +283,30 @@ window.Cart = {
 
             <div class="paypal-click-status muted" data-id="${p.id}">
               ${(savedState.clicked || []).includes(p.id)
-                ? 'PayPal link opened. Enter the corresponding Transaction ID.'
-                : 'Open the PayPal link before submitting the order.'}
+                ? (ar ? 'تم فتح رابط PayPal. أدخل معرّف المعاملة المقابل.' : 'PayPal link opened. Enter the corresponding Transaction ID.')
+                : (ar ? 'افتح رابط PayPal قبل إرسال الطلب.' : 'Open the PayPal link before submitting the order.')}
             </div>
           </div>
         `).join('')}
 
         <div class="card checkout-total-box">
-          <strong>Item Total: ${itemTotal.toFixed(2)} USD</strong>
-          <div class="muted">Delivery fee: 0.00 USD</div>
-          <div class="muted">Payment gateway fee: 0.00 USD</div>
-          <div class="muted">VAT: 0.00 USD</div>
-          <div><strong>Total: ${itemTotal.toFixed(2)} USD</strong></div>
+          <strong>${t('itemTotal')}: ${itemTotal.toFixed(2)} ${t('usd')}</strong>
+          <div class="muted">${t('deliveryFee')}: 0.00 ${t('usd')}</div>
+          <div class="muted">${t('gatewayFee')}: 0.00 ${t('usd')}</div>
+          <div class="muted">${t('vat')}: 0.00 ${t('usd')}</div>
+          <div><strong>${t('total')}: ${itemTotal.toFixed(2)} ${t('usd')}</strong></div>
         </div>
 
         <div class="form-group checkout-agree">
           <input type="checkbox" id="delivery-agree" style="width:auto" required>
           <label for="delivery-agree">
-            I agree to the Delivery Policy stated on the website.
+            ${t('agreeDelivery')}
             <span class="req-star">*</span>
           </label>
         </div>
 
         <button id="submit-order-btn" type="submit" class="btn" disabled>
-          Please open each PayPal link and enter every Transaction ID
+          ${ar ? 'يرجى فتح كل رابط PayPal وإدخال جميع معرّفات المعاملات' : 'Please open each PayPal link and enter every Transaction ID'}
         </button>
       </form>
     `);
@@ -339,7 +326,7 @@ window.Cart = {
         const status = document.querySelector(
           `.paypal-click-status[data-id="${CSS.escape(link.dataset.id)}"]`
         );
-        if (status) status.textContent = 'PayPal link opened. Enter the corresponding Transaction ID.';
+        if (status) status.textContent = ar ? 'تم فتح رابط PayPal. أدخل معرّف المعاملة المقابل.' : 'PayPal link opened. Enter the corresponding Transaction ID.';
 
         this.updateCheckoutSubmitState(clicked, rows);
       });
@@ -367,7 +354,9 @@ window.Cart = {
       event.preventDefault();
 
       if (!confirm(
-        'Please confirm that all information provided is valid, especially every PayPal Transaction ID, before submitting your order.'
+        ar
+          ? 'يرجى التأكد من صحة جميع المعلومات، وبالأخص كل معرّف معاملة PayPal، قبل إرسال الطلب.'
+          : 'Please confirm that all information provided is valid, especially every PayPal Transaction ID, before submitting your order.'
       )) return;
 
       await this.submitOrder(rows);
@@ -393,8 +382,10 @@ window.Cart = {
     button.classList.toggle('success', ready);
 
     button.textContent = ready
-      ? 'Submit Order for Verification'
-      : 'Please open each PayPal link and enter every Transaction ID';
+      ? t('submitVerification')
+      : (Store.state.lang === 'ar'
+          ? 'يرجى فتح كل رابط PayPal وإدخال جميع معرّفات المعاملات'
+          : 'Please open each PayPal link and enter every Transaction ID');
   },
 
   async submitOrder(rows) {
@@ -415,7 +406,7 @@ window.Cart = {
     });
 
     button.disabled = true;
-    button.textContent = 'Submitting order...';
+    button.textContent = Store.state.lang === 'ar' ? 'جارٍ إرسال الطلب...' : 'Submitting order...';
 
     const { data, error } = await db.rpc('create_order', {
       p_items: items,
@@ -429,9 +420,9 @@ window.Cart = {
 
     if (error) {
       console.error(error);
-      Store.alert('Order submission failed: ' + error.message, 'err');
+      Store.alert(Store.state.lang === 'ar' ? 'فشل إرسال الطلب.' : 'Order submission failed: ' + error.message, 'err');
       button.disabled = false;
-      button.textContent = 'Submit Order for Verification';
+      button.textContent = t('submitVerification');
       return;
     }
 
@@ -440,14 +431,16 @@ window.Cart = {
 
     Store.view(`
       <div class="alert ok">
-        Order #${Store.esc(data?.order_number || '')} was submitted successfully for payment verification.
+        ${Store.state.lang === 'ar'
+          ? `تم إرسال الطلب رقم ${Store.esc(data?.order_number || '')} بنجاح للتحقق من الدفع.`
+          : `Order #${Store.esc(data?.order_number || '')} was submitted successfully for payment verification.`}
       </div>
 
       <div class="card">
-        <p><strong>Status:</strong> Pending verification</p>
-        <p><strong>Total:</strong> ${Number(data?.total_usd||0).toFixed(2)} USD</p>
-        <button id="view-orders" class="btn primary">View My Orders</button>
-        <button id="return-home" class="btn">Return Home</button>
+        <p><strong>${t('status')}:</strong> ${Store.state.lang === 'ar' ? 'بانتظار التحقق' : 'Pending verification'}</p>
+        <p><strong>${t('total')}:</strong> ${Number(data?.total_usd||0).toFixed(2)} ${t('usd')}</p>
+        <button id="view-orders" class="btn primary">${t('orders')}</button>
+        <button id="return-home" class="btn">${t('home')}</button>
       </div>
     `);
 

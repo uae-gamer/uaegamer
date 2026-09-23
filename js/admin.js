@@ -7,15 +7,15 @@ window.Admin = {
     ['users','Registered Users'],
     ['audit','Audit Log'],
     ['security','Security Audit'],
-    ['backup','Backup & Health'],
+    ['backup','Backup and Health'],
     ['email_templates','Email Templates'],
-    ['email_log','Email Log'],
+    ['email_log','Email Delivery Log'],
     ['orders','Orders'],
     ['report','Revenue Report'],
-    ['statistics','Statistics & Reports'],
-    ['messages','Messages'],
+    ['statistics','Statistics and Reports'],
+    ['messages','Contact Messages'],
     ['pages','Footer Pages'],
-    ['guides','Guide Pages'],
+    ['guides','Custom Pages'],
     ['settings','Site Settings'],
     ['csv','CSV Data']
   ],
@@ -26,25 +26,26 @@ window.Admin = {
       return;
     }
 
+    const sortedTabs = [...this.tabs].sort((a,b) => a[1].localeCompare(b[1], 'en'));
+
     Store.view(`
-      <nav class="sub-nav">
-        ${this.tabs.map(([key,name]) =>
-          `<button class="mini ${key===tab?'active':''}" data-tab="${key}">${name}</button>`
-        ).join('')}
-      </nav>
+      <div class="admin-section-picker">
+        <label for="admin-section-select"><strong>Admin Section</strong></label>
+        <select id="admin-section-select">
+          ${sortedTabs.map(([key,name]) =>
+            `<option value="${key}" ${key===tab?'selected':''}>${name}</option>`
+          ).join('')}
+        </select>
+      </div>
       <div id="admin-body"></div>
     `);
 
-    document.querySelectorAll('[data-tab]').forEach(b => {
-      b.onclick = () => {
-        const route = `admin/${b.dataset.tab}`;
-        if (location.hash.slice(1) === route) {
-          this.render(b.dataset.tab);
-        } else {
-          location.hash = route;
-        }
-      };
-    });
+    document.getElementById('admin-section-select').onchange = event => {
+      const key = event.target.value;
+      const route = `admin/${key}`;
+      if (location.hash.slice(1) === route) this.render(key);
+      else location.hash = route;
+    };
 
     await this[tab]();
   },
@@ -54,13 +55,13 @@ window.Admin = {
     Store.alert(error?.message || String(error), 'err');
   },
 
-  productForm(product=null) {
+  productForm(product=null, suggestedOrder=1) {
     const p = product || {};
     const editing = Boolean(product);
 
     return `
       <form id="product-form" class="panel">
-        <h3>${editing ? 'Edit Listed Item' : 'Add Listed Item'}</h3>
+        <h3>${editing ? 'Edit Listed Item' : 'Create Listed Item'}</h3>
 
         <div class="bilingual">
           <div class="form-group">
@@ -140,7 +141,7 @@ window.Admin = {
         <div class="bilingual">
           <div class="form-group">
             <label>Display Order</label>
-            <input name="sort_order" type="number" value="${p.sort_order ?? 999999}">
+            <input name="sort_order" type="number" value="${p.sort_order ?? suggestedOrder}">
           </div>
           <div class="form-group">
             <label style="margin-top:28px">
@@ -150,7 +151,7 @@ window.Admin = {
           </div>
         </div>
 
-        <button class="btn success">${editing ? 'Save Changes' : 'Add Listed Item'}</button>
+        <button class="btn success">${editing ? 'Save Listed Item' : 'Create Listed Item'}</button>
         ${editing ? `<button type="button" id="cancel-edit" class="btn secondary">Cancel</button>` : ''}
       </form>
     `;
@@ -167,7 +168,7 @@ window.Admin = {
     host.innerHTML = `
       <h2>Manage Listed Items (${products.length})</h2>
 
-      ${this.productForm(editProduct)}
+      ${this.productForm(editProduct, products.length ? Math.max(...products.map(x => Number(x.sort_order||0))) + 1 : 1)}
 
       <div class="table-wrap">
         <table>
@@ -192,8 +193,8 @@ window.Admin = {
                 <td>${Number(p.sort_order||0)}</td>
                 <td>${p.active ? 'Yes' : 'No'}</td>
                 <td>
-                  <button class="btn edit-product" data-id="${p.id}">Edit</button>
-                  <button class="btn secondary manage-product" data-id="${p.id}">Images / Content / Expenses</button>
+                  <button class="btn edit-product" data-id="${p.id}">Edit Item</button>
+                  <button class="btn secondary manage-product" data-id="${p.id}">Manage Images, Content and Expenses</button>
                   <button class="btn danger delete-product" data-id="${p.id}">Delete</button>
                 </td>
               </tr>
@@ -221,7 +222,7 @@ window.Admin = {
         category_id: fd.get('category_id') || null,
         type_id: fd.get('type_id') || null,
         paypal_link: String(fd.get('paypal_link')||'').trim() || null,
-        sort_order: Number(fd.get('sort_order')||999999),
+        sort_order: Number(fd.get('sort_order') || (products.length ? Math.max(...products.map(x => Number(x.sort_order||0))) + 1 : 1)),
         active: fd.has('active')
       };
 
@@ -692,28 +693,36 @@ window.Admin = {
   types() { return this.simpleTable('product_types','Types'); },
   textbar() { return this.simpleTable('text_bar','Text Bar','text','text_ar'); },
 
-  async orders() {
-    const {data,error} = await db.from('orders')
+  async orders(showDeleted=false) {
+    let query = db.from('orders')
       .select('*,order_items(*)')
-      .order('created_at',{ascending:false});
+      .order(showDeleted ? 'deleted_at' : 'created_at',{ascending:false});
 
+    query = showDeleted ? query.not('deleted_at','is',null) : query.is('deleted_at',null);
+
+    const {data,error} = await query;
     if (error) return this.err(error);
 
     const rows = data || [];
 
     document.getElementById('admin-body').innerHTML = `
-      <h2>Manage Orders (${rows.length})</h2>
+      <div class="admin-title-row">
+        <h2>${showDeleted ? 'Deleted Orders' : 'Manage Orders'} (${rows.length})</h2>
+        <button id="toggle-deleted-orders" class="btn secondary">
+          ${showDeleted ? 'View Active Orders' : 'View Deleted Orders'}
+        </button>
+      </div>
 
       ${rows.map(o => `
-        <div class="card admin-order-card">
+        <div class="card admin-order-card ${showDeleted?'deleted-order-card':''}">
           <div class="admin-order-head">
             <div>
               <strong>Order #${Store.esc(o.order_number)}</strong><br>
               ${Store.esc((o.first_name||'')+' '+(o.last_name||''))}<br>
               ${Store.esc(o.email||'')}<br>
               ${Store.esc(o.mobile_number||'')}
+              ${showDeleted ? `<br><span class="muted">Deleted: ${o.deleted_at?new Date(o.deleted_at).toLocaleString():''}</span>` : ''}
             </div>
-
             <div>
               <strong>${Number(o.total_usd||0).toFixed(2)} USD</strong><br>
               <span class="muted">${o.created_at?new Date(o.created_at).toLocaleString():''}</span>
@@ -722,46 +731,44 @@ window.Admin = {
 
           <div class="table-wrap">
             <table>
-              <thead>
+              <thead><tr><th>Item</th><th>Qty</th><th>Unit Price</th><th>PayPal Transaction ID</th></tr></thead>
+              <tbody>${(o.order_items||[]).map(i => `
                 <tr>
-                  <th>Item</th>
-                  <th>Qty</th>
-                  <th>Unit Price</th>
-                  <th>PayPal Transaction ID</th>
-                </tr>
-              </thead>
-              <tbody>
-                ${(o.order_items||[]).map(i => `
-                  <tr>
-                    <td>${Store.esc(i.product_title||'')}</td>
-                    <td>${Number(i.quantity||0)}</td>
-                    <td>${Number(i.unit_price_usd||0).toFixed(2)} USD</td>
-                    <td><code>${Store.esc(i.paypal_transaction_id||'N/A')}</code></td>
-                  </tr>
-                `).join('')}
+                  <td>${Store.esc(i.product_title||'')}</td>
+                  <td>${Number(i.quantity||0)}</td>
+                  <td>${Number(i.unit_price_usd||0).toFixed(2)} USD</td>
+                  <td><code>${Store.esc(i.paypal_transaction_id||'N/A')}</code></td>
+                </tr>`).join('')}
               </tbody>
             </table>
           </div>
 
-          <div class="bilingual">
-            <div class="form-group">
-              <label>Order Status</label>
-              <select class="order-status" data-id="${o.id}">
-                ${['pending','processing','confirmed','shipped','delivered','cancelled','rejected']
-                  .map(s => `<option value="${s}" ${o.status===s?'selected':''}>${s}</option>`).join('')}
-              </select>
+          ${showDeleted ? `
+            <button class="btn success restore-order" data-id="${o.id}">Restore Order</button>
+            <button class="btn secondary admin-receipt" data-id="${o.id}">Open Receipt</button>
+          ` : `
+            <div class="bilingual">
+              <div class="form-group">
+                <label>Order Status</label>
+                <select class="order-status" data-id="${o.id}">
+                  ${['pending','processing','confirmed','shipped','delivered','cancelled','rejected']
+                    .map(s => `<option value="${s}" ${o.status===s?'selected':''}>${s}</option>`).join('')}
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Admin Notes</label>
+                <textarea class="order-admin-notes" data-id="${o.id}">${Store.esc(o.admin_notes||'')}</textarea>
+              </div>
             </div>
-
-            <div class="form-group">
-              <label>Admin Notes</label>
-              <textarea class="order-admin-notes" data-id="${o.id}">${Store.esc(o.admin_notes||'')}</textarea>
-            </div>
-          </div>
-
-          <button class="btn success save-order" data-id="${o.id}">Save Order Status / Notes</button> <button class="btn secondary admin-receipt" data-id="${o.id}">View Receipt</button>
+            <button class="btn success save-order" data-id="${o.id}">Save Order Changes</button>
+            <button class="btn secondary admin-receipt" data-id="${o.id}">Open Receipt</button>
+            <button class="btn danger soft-delete-order" data-id="${o.id}">Delete Order from Reports</button>
+          `}
         </div>
-      `).join('') || '<div class="card">No orders yet.</div>'}
+      `).join('') || `<div class="card">${showDeleted ? 'No deleted orders.' : 'No active orders yet.'}</div>`}
     `;
+
+    document.getElementById('toggle-deleted-orders').onclick = () => this.orders(!showDeleted);
 
     document.querySelectorAll('.admin-receipt').forEach(btn => {
       btn.onclick = () => Store.go(`receipt/${btn.dataset.id}`);
@@ -780,11 +787,44 @@ window.Admin = {
           cancelled_at: ['cancelled','rejected'].includes(status) ? new Date().toISOString() : null
         };
 
-        const result = await db.from('orders').update(patch).eq('id',id);
+        const result = await db.from('orders').update(patch).eq('id',id).is('deleted_at',null);
         if (result.error) return this.err(result.error);
 
-        Store.alert('Order updated.');
-        await this.orders();
+        Store.alert('Order changes saved.');
+        await this.orders(false);
+      };
+    });
+
+    document.querySelectorAll('.soft-delete-order').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Delete this order from customer history, revenue, statistics and reports? The order will remain recoverable under Deleted Orders.')) return;
+
+        const reason = prompt('Optional deletion reason:', 'Test or dummy order') || 'Deleted by administrator';
+        const result = await db.from('orders').update({
+          deleted_at: new Date().toISOString(),
+          deleted_by: Store.state.user.id,
+          deletion_reason: reason
+        }).eq('id',btn.dataset.id).is('deleted_at',null);
+
+        if (result.error) return this.err(result.error);
+        Store.alert('Order moved to Deleted Orders and excluded from reports.');
+        await this.orders(false);
+      };
+    });
+
+    document.querySelectorAll('.restore-order').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Restore this order to customer history and reports?')) return;
+
+        const result = await db.from('orders').update({
+          deleted_at: null,
+          deleted_by: null,
+          deletion_reason: null
+        }).eq('id',btn.dataset.id);
+
+        if (result.error) return this.err(result.error);
+        Store.alert('Order restored.');
+        await this.orders(true);
       };
     });
   },
@@ -792,7 +832,7 @@ window.Admin = {
   async report() {
     const { data: orders, error } = await db.from('orders').select('*,order_items(*)').order('created_at',{ascending:false});
     if (error) return this.err(error);
-    const included=(orders||[]).filter(o=>!['cancelled','rejected'].includes(o.status));
+    const included=(orders||[]).filter(o=>!o.deleted_at && !['cancelled','rejected'].includes(o.status));
     let income=0, expenses=0, units=0;
     const rows=included.map(order=>{
       let orderIncome=0, orderExpense=0;
@@ -809,7 +849,7 @@ window.Admin = {
       income+=orderIncome; expenses+=orderExpense;
       return {number:order.order_number,date:order.created_at,customer:`${order.first_name||''} ${order.last_name||''}`.trim(),status:order.status,income:orderIncome,expense:orderExpense,profit:orderIncome-orderExpense};
     });
-    document.getElementById('admin-body').innerHTML=`<h2>Revenue Report</h2><p class="muted">Income is calculated from item selling prices only. Delivery charges, VAT and payment-gateway fees are excluded. Cancelled and rejected orders are excluded.</p><div class="stat-grid report-summary"><div class="stat"><span>Total Orders</span><strong>${rows.length.toLocaleString()}</strong></div><div class="stat"><span>Units Sold</span><strong>${units.toLocaleString()}</strong></div><div class="stat"><span>Item Income</span><strong>${income.toFixed(2)}</strong><small>USD</small></div><div class="stat"><span>Expenses</span><strong>${expenses.toFixed(2)}</strong><small>USD</small></div><div class="stat"><span>Net Revenue</span><strong>${(income-expenses).toFixed(2)}</strong><small>USD</small></div></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Status</th><th>Income USD</th><th>Expenses USD</th><th>Net Revenue USD</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>#${Store.esc(r.number)}</strong></td><td>${r.date?new Date(r.date).toLocaleString():''}</td><td>${Store.esc(r.customer)}</td><td>${Store.statusBadge?Store.statusBadge(r.status):Store.esc(r.status)}</td><td>${r.income.toFixed(2)}</td><td>${r.expense.toFixed(2)}</td><td><strong>${r.profit.toFixed(2)}</strong></td></tr>`).join('')}</tbody></table></div>`;
+    document.getElementById('admin-body').innerHTML=`<h2>Revenue Report</h2><p class="muted">Income is calculated from item selling prices only. Delivery charges, VAT and payment-gateway fees are excluded. Cancelled, rejected and deleted orders are excluded.</p><div class="stat-grid report-summary"><div class="stat"><span>Total Orders</span><strong>${rows.length.toLocaleString()}</strong></div><div class="stat"><span>Units Sold</span><strong>${units.toLocaleString()}</strong></div><div class="stat"><span>Item Income</span><strong>${income.toFixed(2)}</strong><small>USD</small></div><div class="stat"><span>Expenses</span><strong>${expenses.toFixed(2)}</strong><small>USD</small></div><div class="stat"><span>Net Revenue</span><strong>${(income-expenses).toFixed(2)}</strong><small>USD</small></div></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Status</th><th>Income USD</th><th>Expenses USD</th><th>Net Revenue USD</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>#${Store.esc(r.number)}</strong></td><td>${r.date?new Date(r.date).toLocaleString():''}</td><td>${Store.esc(r.customer)}</td><td>${Store.statusBadge?Store.statusBadge(r.status):Store.esc(r.status)}</td><td>${r.income.toFixed(2)}</td><td>${r.expense.toFixed(2)}</td><td><strong>${r.profit.toFixed(2)}</strong></td></tr>`).join('')}</tbody></table></div>`;
   },
 
   async statistics(period='daily') {
@@ -821,7 +861,7 @@ window.Admin = {
       db.from('analytics_visitors').select('visitor_id'),
       db.from('analytics_presence').select('visitor_id,last_seen'),
       db.from('profiles').select('id,role,created_at'),
-      db.from('orders').select('id,status,created_at,order_items(quantity,unit_price_usd)'),
+      db.from('orders').select('id,status,created_at,deleted_at,order_items(quantity,unit_price_usd)').is('deleted_at',null),
       db.from('messages').select('id,created_at')
     ]);
     const failed=results.find(r=>r.error); if(failed) return this.err(failed.error);
@@ -842,7 +882,7 @@ window.Admin = {
       rows=[{period:'All Time',page_views:daily.reduce((s,x)=>s+Number(x.page_views||0),0),unique_visitors:visitors.length,registered:profiles.filter(p=>p.role==='customer').length,peak_online:Math.max(0,...daily.map(x=>Number(x.peak_online||0))),orders:orders.length,income:inc,messages:messages.length}];
     }
     const latest=rows.length?rows[rows.length-1]:{page_views:0,unique_visitors:0,registered:0,peak_online:0,orders:0,income:0,messages:0};
-    body.innerHTML=`<h2>Website Statistics & Reports</h2><p class="muted">Page views and anonymous unique visitors are tracked by date. Online Now uses visitor activity within the last five minutes. Cancelled/rejected orders are excluded from order/income totals.</p><div class="period-buttons"><button class="btn ${period==='daily'?'success':''}" data-period="daily">Daily</button><button class="btn ${period==='monthly'?'success':''}" data-period="monthly">Monthly</button><button class="btn ${period==='all'?'success':''}" data-period="all">All Time</button></div><div class="stat-grid stats-summary"><div class="stat"><span>Page Views</span><strong>${latest.page_views.toLocaleString()}</strong></div><div class="stat"><span>Unique Visitors</span><strong>${latest.unique_visitors.toLocaleString()}</strong></div><div class="stat"><span>Registered Users</span><strong>${latest.registered.toLocaleString()}</strong></div><div class="stat"><span>Online Now</span><strong>${online.toLocaleString()}</strong></div><div class="stat"><span>Peak Online</span><strong>${latest.peak_online.toLocaleString()}</strong></div><div class="stat"><span>Orders</span><strong>${latest.orders.toLocaleString()}</strong></div><div class="stat"><span>Income USD</span><strong>${latest.income.toFixed(2)}</strong></div><div class="stat"><span>Messages</span><strong>${latest.messages.toLocaleString()}</strong></div></div>${period!=='all'&&rows.length?'<div class="chart-grid"><div class="chart-card"><canvas id="traffic-chart" height="250"></canvas></div><div class="chart-card"><canvas id="business-chart" height="250"></canvas></div></div>':''}<div class="table-wrap"><table><thead><tr><th>Period</th><th>Page Views</th><th>Unique Visitors</th><th>Registered Users</th><th>Peak Online</th><th>Orders</th><th>Income</th><th>Messages</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Store.esc(r.period)}</td><td>${r.page_views}</td><td>${r.unique_visitors}</td><td>${r.registered}</td><td>${r.peak_online}</td><td>${r.orders}</td><td>${r.income.toFixed(2)}</td><td>${r.messages}</td></tr>`).join('')}</tbody></table></div>`;
+    body.innerHTML=`<h2>Website Statistics and Reports</h2><p class="muted">Page views and anonymous unique visitors are tracked by date. Online Now uses visitor activity within the last five minutes. Cancelled, rejected and deleted orders are excluded from order/income totals.</p><div class="period-buttons"><button class="btn ${period==='daily'?'success':''}" data-period="daily">Daily</button><button class="btn ${period==='monthly'?'success':''}" data-period="monthly">Monthly</button><button class="btn ${period==='all'?'success':''}" data-period="all">All Time</button></div><div class="stat-grid stats-summary"><div class="stat"><span>Page Views</span><strong>${latest.page_views.toLocaleString()}</strong></div><div class="stat"><span>Unique Visitors</span><strong>${latest.unique_visitors.toLocaleString()}</strong></div><div class="stat"><span>Registered Users</span><strong>${latest.registered.toLocaleString()}</strong></div><div class="stat"><span>Online Now</span><strong>${online.toLocaleString()}</strong></div><div class="stat"><span>Peak Online</span><strong>${latest.peak_online.toLocaleString()}</strong></div><div class="stat"><span>Orders</span><strong>${latest.orders.toLocaleString()}</strong></div><div class="stat"><span>Income USD</span><strong>${latest.income.toFixed(2)}</strong></div><div class="stat"><span>Messages</span><strong>${latest.messages.toLocaleString()}</strong></div></div>${period!=='all'&&rows.length?'<div class="chart-grid"><div class="chart-card"><canvas id="traffic-chart" height="250"></canvas></div><div class="chart-card"><canvas id="business-chart" height="250"></canvas></div></div>':''}<div class="table-wrap"><table><thead><tr><th>Period</th><th>Page Views</th><th>Unique Visitors</th><th>Registered Users</th><th>Peak Online</th><th>Orders</th><th>Income</th><th>Messages</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Store.esc(r.period)}</td><td>${r.page_views}</td><td>${r.unique_visitors}</td><td>${r.registered}</td><td>${r.peak_online}</td><td>${r.orders}</td><td>${r.income.toFixed(2)}</td><td>${r.messages}</td></tr>`).join('')}</tbody></table></div>`;
     document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>this.statistics(b.dataset.period));
     if(period!=='all'&&rows.length){this.drawStatsChart('traffic-chart',rows.slice(-31),[['page_views','Page Views'],['unique_visitors','Unique Visitors'],['registered','Registered']]); this.drawStatsChart('business-chart',rows.slice(-31),[['orders','Orders'],['income','Income'],['messages','Messages']]);}
   },
@@ -1267,7 +1307,7 @@ window.Admin = {
 
   async backup() {
     document.getElementById('admin-body').innerHTML = `
-      <h2>Backup & System Health</h2>
+      <h2>Backup and System Health</h2>
 
       <div class="admin-grid backup-grid">
         <section class="panel">
@@ -1275,7 +1315,7 @@ window.Admin = {
           <p class="muted">
             Checks common configuration and operational problems without changing data.
           </p>
-          <button id="run-health" class="btn primary">Run System Health Check</button>
+          <button id="run-health" class="btn primary">Run Health Check</button>
           <div id="health-results" style="margin-top:12px"></div>
         </section>
 
@@ -1285,7 +1325,7 @@ window.Admin = {
             Products, categories, images metadata, Included Content, expenses, pages,
             site settings and email templates. Recommended before major website changes.
           </p>
-          <button id="backup-config" class="btn secondary">Download Configuration Backup</button>
+          <button id="backup-config" class="btn secondary">Export Configuration Backup</button>
         </section>
 
         <section class="panel">
@@ -1294,7 +1334,7 @@ window.Admin = {
             Configuration plus customers, orders, messages, notifications, logs and analytics.
             Auth account metadata is included, but passwords and Supabase secrets are never exported.
           </p>
-          <button id="backup-full" class="btn secondary">Download Full Data Backup</button>
+          <button id="backup-full" class="btn secondary">Export Full Data Backup</button>
         </section>
       </div>
 
@@ -1441,8 +1481,8 @@ window.Admin = {
           </div>
 
           <div class="template-preview-actions">
-            <button class="btn success">Save Template</button>
-            <button type="button" class="btn secondary preview-template">Preview</button>
+            <button class="btn success">Save Email Template</button>
+            <button type="button" class="btn secondary preview-template">Preview Email</button>
           </div>
         </form>
       `).join('')}
@@ -1645,7 +1685,7 @@ window.Admin = {
     if (error) return this.err(error);
 
     document.getElementById('admin-body').innerHTML = `
-      <h2>Site Configuration & Customization</h2>
+      <h2>Site Configuration and Customization</h2>
 
       <form id="settings-form" class="panel">
         <div class="bilingual">
@@ -1776,7 +1816,7 @@ window.Admin = {
         </label>
 
         <div style="margin-top:14px">
-          <button class="btn success">Save Settings</button>
+          <button class="btn success">Save Site Settings</button>
         </div>
       </form>
     `;
@@ -1887,7 +1927,7 @@ window.Admin = {
 
   async csv() {
     document.getElementById('admin-body').innerHTML = `
-      <h2>CSV Data Import & Export</h2>
+      <h2>CSV Data Import and Export</h2>
       <p class="muted">
         Listed Items and Included Content use separate CSV files. Included Content uses one row
         per entry so very large lists are not limited by spreadsheet-cell length.
