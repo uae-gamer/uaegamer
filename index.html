@@ -8,12 +8,34 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+  (function () {
+    try {
+      const lang = localStorage.getItem('sf_lang') || 'en';
+      const theme = localStorage.getItem('sf_theme') || 'light';
+      const cached = JSON.parse(localStorage.getItem('sf_cached_settings') || '{}');
+
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.documentElement.dataset.theme = theme;
+
+      const root = document.documentElement.style;
+      if (cached.theme_color) root.setProperty('--primary', cached.theme_color);
+      if (cached.font_size) root.setProperty('--base-font-size', cached.font_size);
+
+      const bodyFont = lang === 'ar' ? cached.font_family_ar : cached.font_family;
+      const headerFont = lang === 'ar' ? cached.header_title_font_family_ar : cached.header_title_font_family;
+      if (bodyFont) root.setProperty('--body-font', bodyFont);
+      if (headerFont) root.setProperty('--header-font', headerFont);
+    } catch (_) {}
+  })();
+  </script>
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
 <header>
   <div class="shell">
-    <div id="brand" class="brand"><h1 id="site-title">StoreFront</h1></div>
+    <div id="brand" class="brand"><h1 id="site-title"></h1></div>
     <p id="site-subtitle" class="subtitle"></p>
     <div class="toolbar">
       <div><button class="mini active" data-lang="en">English</button><button class="mini" data-lang="ar">العربية</button></div>
@@ -36,7 +58,7 @@
 <footer class="shell footer">
   <div id="footer-links" class="footer-links"></div>
   <div id="social-links" class="social-links"></div>
-  <p>© <span id="year"></span> <span id="footer-name">StoreFront</span>. <span data-i18n="rights">All rights reserved.</span></p>
+  <p>© <span id="year"></span> <span id="footer-name"></span>. <span data-i18n="rights">All rights reserved.</span></p>
 </footer>
 
 <div id="modal" class="modal hidden" role="dialog" aria-modal="true">

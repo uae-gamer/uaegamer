@@ -1,14 +1,14 @@
-# StoreFront Step 14.1 — Fix package
+# StoreFront Step 14.2 — Footer Guides + Startup Flash Fix
 
-Run `STEP14-1-SQL.sql` first.
+No SQL changes are required if Step 14.1 SQL has already been completed successfully.
 
 Fixes:
-- Admin role changes now use a secure SECURITY DEFINER RPC.
-- Registration includes Mobile Number and stores it in profiles.
-- Default Footer Pages are seeded if the table is empty.
-- Default Guide Pages are seeded if the table is empty.
-- Admin tabs persist in the URL, e.g. `#admin/pages`, so browser focus/auth refreshes do not reset to Listed Items.
-- Body/header font-family settings now use CSS variables and are applied consistently to forms, tables, buttons and navigation.
-- Existing Step 14 features remain.
+- Enabled Guide Pages now appear as buttons in the public footer alongside Footer Pages.
+- Footer Pages and Guide Pages load independently; one failed table query does not blank the other.
+- English/Arabic page content is selected correctly when the footer modal opens.
+- Default StoreFront title/colors/fonts no longer flash visibly during refresh.
+- The last successful site appearance settings are cached locally and applied as early as possible.
+- The page remains visually cloaked until the real Supabase settings have been applied.
+- Startup failures still reveal the page instead of leaving it permanently hidden.
 
-Keep your current working `js/config.js`.
+Keep your working `js/config.js`.
