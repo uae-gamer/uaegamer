@@ -33,20 +33,33 @@ window.Products = {
       db.from('text_bar').select('*').order('sort_order', { ascending: true })
     );
 
-    for (const product of Store.state.products) {
-      product.product_images = await safe(
+    // Load images in batches instead of one request per product.
+    const ids = Store.state.products.map(p => p.id);
+    const allImages = [];
+
+    for (let i = 0; i < ids.length; i += 100) {
+      const chunk = ids.slice(i, i + 100);
+      if (!chunk.length) continue;
+
+      const rows = await safe(
         db.from('product_images')
           .select('*')
-          .eq('product_id', product.id)
+          .in('product_id', chunk)
           .order('sort_order', { ascending: true })
       );
+      allImages.push(...rows);
+    }
 
-      product.included_content = await safe(
-        db.from('included_content')
-          .select('*')
-          .eq('product_id', product.id)
-          .order('sort_order', { ascending: true })
-      );
+    const imagesByProduct = new Map();
+    for (const image of allImages) {
+      if (!imagesByProduct.has(image.product_id)) imagesByProduct.set(image.product_id, []);
+      imagesByProduct.get(image.product_id).push(image);
+    }
+
+    for (const product of Store.state.products) {
+      product.product_images = imagesByProduct.get(product.id) || [];
+      // Included Content is intentionally NOT loaded during startup.
+      // It is fetched 25 rows at a time only when requested.
     }
 
     Store.state.textbar = Store.state.textbar.filter(x => x.enabled === undefined || x.enabled === true);
@@ -174,14 +187,13 @@ window.Products = {
         ? `<span class="stock-out">${t('out')}</span>`
         : `<span class="stock-in">${t('inStock')} (${Number(p.stock_quantity || 0)})</span>`;
 
-    const includedCount = (p.included_content || []).length;
     const canBuy = p.status === 'in_stock' && Number(p.stock_quantity || 0) > 0;
 
     return `
       <article class="product">
         <div class="product-img product-gallery" data-product="${Store.escAttr(p.id)}" data-index="0">
           ${image
-            ? `<img class="product-gallery-image" src="${Store.escAttr(image)}" alt="${Store.escAttr(localize(p,'title'))}">`
+            ? `<img loading="lazy" class="product-gallery-image" src="${Store.escAttr(image)}" alt="${Store.escAttr(localize(p,'title'))}">`
             : `<span class="muted">No image</span>`}
 
           ${imageCount > 1 ? `
@@ -203,9 +215,8 @@ window.Products = {
         <div>${status}</div>
 
         <div class="product-actions">
-          ${includedCount
-            ? `<button class="btn included" data-id="${Store.escAttr(p.id)}">${t('included')} (${includedCount})</button>`
-            : ''}
+          <a class="btn secondary product-details-link" href="./product.html?id=${encodeURIComponent(p.id)}">View Details</a>
+          <button class="btn included" data-id="${Store.escAttr(p.id)}">${t('included')}</button>
 
           ${canBuy
             ? `<button class="btn primary add" data-id="${Store.escAttr(p.id)}">${t('addCart')}</button>`
@@ -326,33 +337,48 @@ window.Products = {
     });
   },
 
-  showIncluded(productId, page = 1) {
+  async showIncluded(productId, page = 1) {
     const product = (Store.state.products || []).find(x => x.id === productId);
     if (!product) return;
 
-    const all = [...(product.included_content || [])]
-      .sort((a,b) => Number(a.sort_order||0)-Number(b.sort_order||0));
-
     const per = 25;
-    const pages = Math.max(1, Math.ceil(all.length/per));
-    page = Math.min(Math.max(1,page), pages);
-    const shown = all.slice((page-1)*per, page*per);
+    const from = (page - 1) * per;
+    const to = from + per - 1;
 
-    // Intentionally display Included Content exactly as stored in `name`;
-    // no Arabic substitution/translation is applied.
     Store.modal(`
       <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
-      <h3 style="text-align:center">${t('included')} (${all.length})</h3>
+      <div class="card" style="text-align:center">Loading Included Content…</div>
+    `);
 
-      <ul class="included-list">
-        ${shown.map(x => `<li>${Store.esc(x.name || '')}</li>`).join('')}
-      </ul>
+    const { data, error, count } = await db
+      .from('included_content')
+      .select('id,name,sort_order', { count: 'exact' })
+      .eq('product_id', productId)
+      .order('sort_order', { ascending: true })
+      .range(from, to);
+
+    if (error) {
+      Store.modal(`<div class="alert err">${Store.esc(error.message)}</div>`);
+      return;
+    }
+
+    const total = Number(count || 0);
+    const pages = Math.max(1, Math.ceil(total / per));
+    page = Math.min(Math.max(1, page), pages);
+
+    Store.modal(`
+      <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
+      <h3 style="text-align:center">${t('included')} (${total.toLocaleString()})</h3>
+
+      ${total
+        ? `<ul class="included-list">${(data || []).map(x => `<li>${Store.esc(x.name || '')}</li>`).join('')}</ul>`
+        : `<div class="card" style="text-align:center">No Included Content</div>`}
 
       ${pages > 1 ? `
         <div class="pagination">
-          ${Array.from({length:pages},(_,i) =>
-            `<button class="mini included-page ${i+1===page?'active':''}" data-p="${i+1}">${i+1}</button>`
-          ).join('')}
+          ${page > 1 ? `<button class="mini included-page" data-p="${page-1}">Previous</button>` : ''}
+          <span class="mini active">Page ${page} of ${pages}</span>
+          ${page < pages ? `<button class="mini included-page" data-p="${page+1}">Next</button>` : ''}
         </div>` : ''}
     `);
 

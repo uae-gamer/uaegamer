@@ -767,42 +767,33 @@ window.Store = {
       safeLoad('guide_pages')
     ]);
 
-    const visiblePages = pages.filter(p => p.enabled === undefined || p.enabled === true);
-    const visibleGuides = guides.filter(p => p.enabled === undefined || p.enabled === true);
-
     const entries = [
-      ...visiblePages.map(p => ({ ...p, _source: 'pages' })),
-      ...visibleGuides.map(p => ({ ...p, _source: 'guide_pages' }))
+      ...pages.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'pages' })),
+      ...guides.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'guide_pages' }))
     ];
 
-    host.innerHTML = entries.map(p => `
-      <a href="#" class="btn footer-page"
-         data-source="${p._source}"
-         data-id="${this.escAttr(p.id)}">
-        ${this.esc(localize(p, 'title'))}
+    const hrefFor = row => {
+      const key = row.page_key || row.slug || '';
+
+      if (row._source === 'pages') {
+        if (key === 'terms') return './terms.html';
+        if (key === 'privacy') return './privacy.html';
+        if (key === 'delivery') return './delivery.html';
+      }
+
+      if (row._source === 'guide_pages') {
+        const m = /^guide_(\d+)$/.exec(key);
+        if (m) return `./guide-${m[1]}.html`;
+      }
+
+      return `./content.html?source=${encodeURIComponent(row._source)}&id=${encodeURIComponent(row.id)}`;
+    };
+
+    host.innerHTML = entries.map(row => `
+      <a class="btn footer-page" href="${hrefFor(row)}">
+        ${this.esc(localize(row,'title'))}
       </a>
     `).join('');
-
-    host.querySelectorAll('.footer-page').forEach(link => {
-      link.addEventListener('click', event => {
-        event.preventDefault();
-
-        const source = link.dataset.source;
-        const collection = source === 'guide_pages' ? visibleGuides : visiblePages;
-        const page = collection.find(x => String(x.id) === String(link.dataset.id));
-        if (!page) return;
-
-        const htmlContent =
-          this.state.lang === 'ar'
-            ? (page.content_ar || page.content || '')
-            : (page.content || page.content_ar || '');
-
-        this.modal(`
-          <h2>${this.esc(localize(page, 'title'))}</h2>
-          <div class="managed-html-content">${htmlContent}</div>
-        `);
-      });
-    });
   },
 
   async start() {
