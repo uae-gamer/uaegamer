@@ -134,3 +134,19 @@ html[data-theme="light"] body{
 .product-included-section{margin-top:24px;background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
 .product-details-link{text-decoration:none}
 @media(max-width:800px){.product-detail-grid{grid-template-columns:1fr}.product-detail-stage{min-height:300px}}
+
+/* Step 15.1 typography consistency */
+html{font-size:var(--base-font-size)!important}
+body{font-size:1rem!important;font-family:var(--body-font)!important}
+body,button,input,textarea,select,option,table,.btn,.mini,.card,.panel,.main-nav,.sub-nav,.footer,
+.description,.muted,.notify-item,.stat,.product,.product-detail-info,.standalone-content{
+  font-family:var(--body-font)!important
+}
+button,input,textarea,select,option,.btn,.mini,table{font-size:1rem}
+.brand h1,#site-title,#public-brand h1,.product-detail-info>h1,.standalone-content>h1{
+  font-family:var(--header-font)!important
+}
+.public-main-nav{margin-top:8px}
+
+/* Stabilize layout while returning to a background tab. */
+body{overflow-y:scroll}
