@@ -1,12 +1,19 @@
-# StoreFront Step 20
+# StoreFront Step 21
 
-Backup, recovery and operational-safety milestone.
+Final security / production-hardening milestone.
 
-1. Run `STEP20-SQL.sql`
-2. Deploy `supabase/functions/admin-backup/index.ts` as `admin-backup`
-3. Upload website files, preserving `js/config.js`
-4. Use Admin → Backup & Health
+1. Run `STEP21-SQL.sql`
+2. Upload website files while preserving your working `js/config.js`
+3. Open Admin → Security Audit and run the live checks
+4. Follow `STEP21-SECURITY.md`
 
-See `STEP20-RECOVERY.md`.
+No Edge Function redeployment and no new secrets are required.
 
-No new Edge Function secrets are required.
+Main changes:
+- hardened PostgreSQL function privileges/search paths
+- profile role-change defense-in-depth
+- customer order-update defense-in-depth
+- stored HTML sanitization
+- safe external URL handling
+- admin live security audit
+- referrer-policy hardening
