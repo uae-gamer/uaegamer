@@ -1,10 +1,15 @@
-# StoreFront Step 24
+# StoreFront Step 24.1
 
-Appearance/footer/social/favicon modification batch.
+Small footer-layout correction based on Step 24.
 
-1. Run `STEP24-SQL.sql`
-2. Upload website files while preserving `js/config.js`
-3. No Edge Function redeployment required
-4. Configure new options in Admin → Site Settings
+No SQL changes.
+No Edge Function redeployment.
+No Supabase configuration changes.
 
-See `STEP24-DEPLOY.md`.
+Upload the website files while preserving `js/config.js`.
+
+Change:
+- Footer page buttons now use the same flexible navigation layout as the header.
+- Enabled footer buttons automatically share the full available width.
+- If one or more custom pages are disabled, the remaining buttons expand automatically.
+- Footer button spacing, border, background and container spacing now mirror the header navigation more closely.
