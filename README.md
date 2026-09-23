@@ -1,9 +1,17 @@
-# StoreFront Step 17
+# StoreFront Step 18 — Transactional Emails
 
-Production-hardening milestone.
+Run `STEP18-SQL.sql`, deploy `transactional-email`, configure the two Edge Function secrets,
+and create the three database webhooks described in `STEP18-DEPLOY.md`.
 
-Run `STEP17-SQL.sql`, then deploy the included `admin-user` Supabase Edge Function using the instructions in `STEP17-DEPLOY.md`.
-
-Adds secure Auth admin email/password/disable-enable controls and an audit log.
+New:
+- Resend-backed transactional emails
+- welcome email option
+- customer order submitted email
+- customer order status emails
+- optional admin new-order email
+- Admin → Email Log
+- email controls in Site Settings
 
 Keep your working `js/config.js`.
+
+Do not upload the `supabase/` folder to GitHub Pages; it is backend deployment source only.
