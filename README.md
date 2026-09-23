@@ -1,29 +1,14 @@
-# StoreFront Step 14 — Admin/content completion
+# StoreFront Step 14.1 — Fix package
 
-Run `STEP14-SQL.sql` first.
+Run `STEP14-1-SQL.sql` first.
 
-Then upload the package, keeping your existing working `js/config.js`.
+Fixes:
+- Admin role changes now use a secure SECURITY DEFINER RPC.
+- Registration includes Mobile Number and stores it in profiles.
+- Default Footer Pages are seeded if the table is empty.
+- Default Guide Pages are seeded if the table is empty.
+- Admin tabs persist in the URL, e.g. `#admin/pages`, so browser focus/auth refreshes do not reset to Listed Items.
+- Body/header font-family settings now use CSS variables and are applied consistently to forms, tables, buttons and navigation.
+- Existing Step 14 features remain.
 
-New:
-- Contact success toast bug fixed
-- Registered Users profile-management page
-- Footer Pages full bilingual editor
-- Guide Pages full bilingual editor
-- Expanded Site Settings
-  - bilingual site name/description
-  - text/logo/animated-gradient header modes
-  - theme color/default theme
-  - base fonts/font size
-  - header fonts/font size
-  - five gradient colors
-  - social links
-  - footer statistics toggle
-- Browser CSV export/import for Listed Items
-- Separate Included Content CSV export/import
-- UTF-8 BOM export for spreadsheet compatibility
-- Included Content remains one row per entry and is not auto-translated
-
-Security note:
-Supabase Auth login-email/password changes and permanent Auth-user deletion are intentionally not exposed
-through GitHub Pages. Those require a trusted Edge Function/Admin API and must never use a service-role key
-in browser code.
+Keep your current working `js/config.js`.
