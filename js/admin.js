@@ -5,6 +5,7 @@ window.Admin = {
     ['types','Types'],
     ['textbar','Text Bar'],
     ['users','Registered Users'],
+    ['audit','Audit Log'],
     ['orders','Orders'],
     ['report','Revenue Report'],
     ['statistics','Statistics & Reports'],
@@ -884,125 +885,201 @@ window.Admin = {
     });
   },
 
+  async callAdminUserFunction(payload) {
+    const { data, error } = await db.functions.invoke('admin-user', {
+      body: payload
+    });
+
+    if (error) {
+      let message = error.message || 'Edge Function request failed.';
+      try {
+        const context = error.context;
+        if (context?.json) {
+          const body = await context.json();
+          if (body?.error) message = body.error;
+        }
+      } catch (_) {}
+      throw new Error(message);
+    }
+
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
+
   async users() {
-    const { data, error } = await db
-      .from('profiles')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const body = document.getElementById('admin-body');
+    body.innerHTML = '<div class="card">Loading registered users…</div>';
 
-    if (error) return this.err(error);
+    const [profilesResult, authResult] = await Promise.allSettled([
+      db.from('profiles').select('*').order('created_at', { ascending: false }),
+      this.callAdminUserFunction({ action: 'list', page: 1, per_page: 200 })
+    ]);
 
-    const rows = data || [];
-    document.getElementById('admin-body').innerHTML = `
-      <h2>Manage Registered Users (${rows.length})</h2>
+    if (profilesResult.status === 'rejected') {
+      return this.err(profilesResult.reason);
+    }
+
+    const profileResponse = profilesResult.value;
+    if (profileResponse.error) return this.err(profileResponse.error);
+
+    const profiles = profileResponse.data || [];
+    const authUsers = authResult.status === 'fulfilled' ? (authResult.value.users || []) : [];
+    const authById = new Map(authUsers.map(u => [u.id, u]));
+
+    body.innerHTML = `
+      <h2>Manage Registered Users (${profiles.length})</h2>
+
+      ${authResult.status === 'rejected' ? `
+        <div class="alert err">
+          Auth administration Edge Function is not available yet:
+          ${Store.esc(authResult.reason?.message || authResult.reason)}
+        </div>` : ''}
+
       <p class="muted">
-        This page manages profile information stored in Supabase. Login email/password and
-        permanent Auth-user deletion require a trusted server-side Admin API and are intentionally
-        not exposed from GitHub Pages.
+        Profile fields and roles are stored in the database. Login email, password and account
+        disable/enable actions are performed by the secure Supabase Edge Function.
       </p>
 
       <div class="table-wrap">
         <table>
           <thead>
             <tr>
-              <th>Username</th><th>Name</th><th>Mobile</th><th>Role</th>
-              <th>Registered</th><th>Action</th>
+              <th>Username</th><th>Email</th><th>Name</th><th>Mobile</th><th>Role</th>
+              <th>Auth Status</th><th>Last Sign In</th><th>Action</th>
             </tr>
           </thead>
           <tbody>
-            ${rows.map(u => `
-              <tr>
-                <td>${Store.esc(u.username||'')}</td>
-                <td>${Store.esc(`${u.first_name||''} ${u.last_name||''}`.trim())}</td>
-                <td>${Store.esc(u.mobile_number||'')}</td>
-                <td>${Store.esc(u.role||'customer')}</td>
-                <td>${u.created_at ? new Date(u.created_at).toLocaleString() : ''}</td>
-                <td><button class="btn edit-user" data-id="${u.id}">Edit Profile</button></td>
-              </tr>
-            `).join('')}
+            ${profiles.map(u => {
+              const auth = authById.get(u.id);
+              const disabled = auth?.banned_until && new Date(auth.banned_until).getTime() > Date.now();
+
+              return `
+                <tr>
+                  <td>${Store.esc(u.username||'')}</td>
+                  <td>${Store.esc(auth?.email||'Unavailable')}</td>
+                  <td>${Store.esc(`${u.first_name||''} ${u.last_name||''}`.trim())}</td>
+                  <td>${Store.esc(u.mobile_number||'')}</td>
+                  <td>${Store.esc(u.role||'customer')}</td>
+                  <td>${disabled ? '<span class="auth-disabled">Disabled</span>' : '<span class="auth-enabled">Enabled</span>'}</td>
+                  <td>${auth?.last_sign_in_at ? new Date(auth.last_sign_in_at).toLocaleString() : 'N/A'}</td>
+                  <td><button class="btn edit-user" data-id="${u.id}">Manage User</button></td>
+                </tr>
+              `;
+            }).join('')}
           </tbody>
         </table>
       </div>
+
       <div id="user-editor"></div>
     `;
 
     document.querySelectorAll('.edit-user').forEach(btn => {
-      btn.onclick = () => this.editUserProfile(rows.find(x => x.id === btn.dataset.id));
+      const profile = profiles.find(x => x.id === btn.dataset.id);
+      const auth = authById.get(btn.dataset.id) || null;
+      btn.onclick = () => this.editUserProfile(profile, auth);
     });
   },
 
-  editUserProfile(user) {
+  editUserProfile(user, authUser = null) {
     if (!user) return;
 
     const host = document.getElementById('user-editor');
+    const disabled = authUser?.banned_until && new Date(authUser.banned_until).getTime() > Date.now();
+
     host.innerHTML = `
-      <form id="user-profile-form" class="panel">
-        <h3>Edit Registered User: ${Store.esc(user.username||'')}</h3>
+      <div class="admin-grid user-management-grid">
+        <form id="user-profile-form" class="panel">
+          <h3>Profile: ${Store.esc(user.username||'')}</h3>
 
-        <div class="bilingual">
-          <div class="form-group">
-            <label>Username</label>
-            <input name="username" value="${Store.escAttr(user.username||'')}" required>
+          <div class="bilingual">
+            <div class="form-group">
+              <label>Username</label>
+              <input name="username" value="${Store.escAttr(user.username||'')}" required>
+            </div>
+
+            <div class="form-group">
+              <label>Role</label>
+              <select name="role">
+                <option value="customer" ${user.role==='customer'?'selected':''}>Customer</option>
+                <option value="admin" ${user.role==='admin'?'selected':''}>Admin</option>
+              </select>
+            </div>
           </div>
-          <div class="form-group">
-            <label>Role</label>
-            <select name="role">
-              <option value="customer" ${user.role==='customer'?'selected':''}>Customer</option>
-              <option value="admin" ${user.role==='admin'?'selected':''}>Admin</option>
-            </select>
+
+          <div class="bilingual">
+            <div class="form-group">
+              <label>First Name</label>
+              <input name="first_name" value="${Store.escAttr(user.first_name||'')}">
+            </div>
+
+            <div class="form-group">
+              <label>Last Name</label>
+              <input name="last_name" value="${Store.escAttr(user.last_name||'')}">
+            </div>
           </div>
-        </div>
 
-        <div class="bilingual">
           <div class="form-group">
-            <label>First Name</label>
-            <input name="first_name" value="${Store.escAttr(user.first_name||'')}">
+            <label>Mobile Number</label>
+            <input name="mobile_number" value="${Store.escAttr(user.mobile_number||'')}">
           </div>
+
           <div class="form-group">
-            <label>Last Name</label>
-            <input name="last_name" value="${Store.escAttr(user.last_name||'')}">
+            <label>Delivery Address</label>
+            <textarea name="delivery_address" rows="3">${Store.esc(user.delivery_address||'')}</textarea>
           </div>
-        </div>
 
-        <div class="form-group">
-          <label>Mobile Number</label>
-          <input name="mobile_number" value="${Store.escAttr(user.mobile_number||'')}">
-        </div>
+          <button class="btn success">Save Profile</button>
+        </form>
 
-        <div class="form-group">
-          <label>Delivery Address</label>
-          <textarea name="delivery_address" rows="3">${Store.esc(user.delivery_address||'')}</textarea>
-        </div>
+        <form id="user-auth-form" class="panel">
+          <h3>Authentication Account</h3>
 
-        <button class="btn success">Save User Profile</button>
-        <button type="button" id="close-user-editor" class="btn secondary">Cancel</button>
-      </form>
+          <div class="form-group">
+            <label>Login Email</label>
+            <input name="email" type="email" value="${Store.escAttr(authUser?.email||'')}" ${authUser?'':'disabled'}>
+          </div>
+
+          <div class="form-group">
+            <label>New Password</label>
+            <input name="password" type="password" minlength="8"
+                   placeholder="Leave blank to keep current password"
+                   ${authUser?'':'disabled'}>
+          </div>
+
+          <p class="muted">
+            Password changes are immediate. Login email changes are performed through the
+            Auth Admin API rather than exposing an elevated key in the browser.
+          </p>
+
+          ${authUser ? `
+            <button class="btn success">Save Auth Account</button>
+            <button type="button" id="toggle-user-disabled"
+                    class="btn ${disabled?'secondary':'danger'}">
+              ${disabled ? 'Enable Account' : 'Disable Account'}
+            </button>
+          ` : `
+            <div class="alert err">Auth details unavailable. Deploy the admin-user Edge Function first.</div>
+          `}
+        </form>
+      </div>
+
+      <button type="button" id="close-user-editor" class="btn secondary">Close</button>
     `;
 
     document.getElementById('close-user-editor').onclick = () => host.innerHTML = '';
 
     document.getElementById('user-profile-form').onsubmit = async event => {
       event.preventDefault();
-      const form = event.currentTarget;
-      const fd = new FormData(form);
-
-      const payload = {
-        username: String(fd.get('username')||'').trim(),
-        first_name: String(fd.get('first_name')||'').trim() || null,
-        last_name: String(fd.get('last_name')||'').trim() || null,
-        mobile_number: String(fd.get('mobile_number')||'').trim() || null,
-        delivery_address: String(fd.get('delivery_address')||'').trim() || null,
-        role: fd.get('role')
-      };
+      const fd = new FormData(event.currentTarget);
 
       const { error } = await db.rpc('admin_update_profile', {
         p_user_id: user.id,
-        p_username: payload.username,
-        p_first_name: payload.first_name,
-        p_last_name: payload.last_name,
-        p_mobile_number: payload.mobile_number,
-        p_delivery_address: payload.delivery_address,
-        p_role: payload.role
+        p_username: String(fd.get('username')||'').trim(),
+        p_first_name: String(fd.get('first_name')||'').trim() || null,
+        p_last_name: String(fd.get('last_name')||'').trim() || null,
+        p_mobile_number: String(fd.get('mobile_number')||'').trim() || null,
+        p_delivery_address: String(fd.get('delivery_address')||'').trim() || null,
+        p_role: fd.get('role')
       });
 
       if (error) return this.err(error);
@@ -1011,6 +1088,95 @@ window.Admin = {
       if (user.id === Store.state.user?.id) await Auth.refresh();
       await this.users();
     };
+
+    if (authUser) {
+      document.getElementById('user-auth-form').onsubmit = async event => {
+        event.preventDefault();
+        const fd = new FormData(event.currentTarget);
+        const email = String(fd.get('email')||'').trim();
+        const password = String(fd.get('password')||'');
+
+        if (email === String(authUser.email||'') && !password) {
+          Store.alert('No Auth account changes were entered.', 'err');
+          return;
+        }
+
+        try {
+          await this.callAdminUserFunction({
+            action: 'update_auth',
+            user_id: user.id,
+            email: email !== String(authUser.email||'') ? email : '',
+            password
+          });
+
+          Store.alert('Auth account updated.');
+          await this.users();
+        } catch (e) {
+          this.err(e);
+        }
+      };
+
+      document.getElementById('toggle-user-disabled').onclick = async () => {
+        const nextDisabled = !disabled;
+        const verb = nextDisabled ? 'disable' : 'enable';
+
+        if (!confirm(`Are you sure you want to ${verb} this account?`)) return;
+
+        try {
+          await this.callAdminUserFunction({
+            action: 'set_disabled',
+            user_id: user.id,
+            disabled: nextDisabled
+          });
+
+          Store.alert(`User account ${nextDisabled ? 'disabled' : 'enabled'}.`);
+          await this.users();
+        } catch (e) {
+          this.err(e);
+        }
+      };
+    }
+  },
+
+  async audit() {
+    const { data, error } = await db
+      .from('admin_audit_log')
+      .select('*,actor:actor_user_id(username),target:target_user_id(username)')
+      .order('created_at', { ascending: false })
+      .limit(250);
+
+    if (error) return this.err(error);
+
+    const rows = data || [];
+    document.getElementById('admin-body').innerHTML = `
+      <h2>Admin Audit Log (${rows.length})</h2>
+      <p class="muted">
+        Sensitive Auth administration actions performed through the Edge Function are recorded here.
+      </p>
+
+      ${rows.length ? `
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Date</th><th>Admin</th><th>Target</th><th>Action</th><th>Details</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr>
+                  <td>${r.created_at ? new Date(r.created_at).toLocaleString() : ''}</td>
+                  <td>${Store.esc(r.actor?.username || r.actor_user_id || 'N/A')}</td>
+                  <td>${Store.esc(r.target?.username || r.target_user_id || 'N/A')}</td>
+                  <td><strong>${Store.esc(r.action)}</strong></td>
+                  <td><code>${Store.esc(JSON.stringify(r.details || {}))}</code></td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      ` : '<div class="card">No sensitive admin actions have been recorded yet.</div>'}
+    `;
   },
 
   pages() {
