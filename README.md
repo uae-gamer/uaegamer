@@ -1,18 +1,56 @@
-# StoreFront Step 15.1 — Navigation / Stability / Style Polish
+# StoreFront Step 16 — True server-side catalog pagination
 
-No new SQL is required if Step 15 SQL was already run.
+## Run SQL first
+Run `STEP16-SQL.sql` in Supabase SQL Editor.
 
-Fixes:
-- Standalone Terms / Privacy / Delivery / Guide / Product pages now show the same authenticated navigation choices as the main site.
-- Navigation reflects login state, cart count, account username and Admin Control access.
-- Logout works from standalone pages.
-- Saving Site Settings reloads the exact current URL (`#admin/settings`) so all global style/header/footer changes initialize cleanly.
-- A success toast appears after the settings-page reload.
-- Supabase TOKEN_REFRESHED events no longer rebuild the visible page when returning to a browser tab.
-- SPA navigation no longer routes twice for the same click.
-- Font size accepts both `16` and `16px` / `1rem` style values.
-- Body text, controls, tables, buttons and managed content explicitly inherit the configured body font and base font size.
-- Header/site titles explicitly use the configured header font.
-- Vertical scrollbar is reserved to reduce horizontal layout shifting.
+It adds:
+- `pg_trgm` search support/indexes
+- `catalog_products(...)` RPC for public catalog queries
+
+## Main change
+Home no longer downloads all active products.
+
+For each catalog view, Supabase receives:
+- search text
+- category
+- type
+- sort
+- language
+- items per page
+- offset
+
+and returns:
+- only the current page's product rows
+- the total matching count
+
+The existing 8 / 16 / 32 page-size options remain.
+
+## Search / filtering / sorting
+All are now server-side:
+- English/Arabic title and description search
+- category
+- type
+- A-Z / Z-A using the selected language
+- effective price low/high
+- default `sort_order`
+
+Search has a 250 ms debounce to avoid issuing a request for every keystroke.
+
+## Cart compatibility
+Because off-page products are no longer in browser memory, Cart and Checkout now hydrate only the product IDs currently stored in the user's cart.
+
+This preserves:
+- stock limits
+- current prices
+- PayPal links
+- checkout behavior
+
+without loading the full catalog.
+
+## Other performance behavior retained
+- Included Content loads only on demand, 25 at a time.
+- Images load only for products on the current catalog page.
+- Image tags use lazy loading.
+- Dedicated product pages remain independent public URLs.
 
 Keep your working `js/config.js`.
