@@ -24,6 +24,92 @@ window.Store = {
     }[m]));
   },
 
+  safeUrl(value, { image = false } = {}) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+
+    try {
+      const url = new URL(raw, location.href);
+      const protocol = url.protocol.toLowerCase();
+
+      if (image && protocol === 'data:') {
+        return /^data:image\/(?:png|jpe?g|gif|webp);/i.test(raw) ? raw : '';
+      }
+
+      if (['http:','https:'].includes(protocol)) return url.href;
+      if (!image && ['mailto:','tel:'].includes(protocol)) return url.href;
+
+      // Same-site relative links are allowed.
+      if (url.origin === location.origin && ['http:','https:'].includes(protocol)) return url.href;
+    } catch (_) {}
+
+    return '';
+  },
+
+  sanitizeHtml(html) {
+    const template = document.createElement('template');
+    template.innerHTML = String(html ?? '');
+
+    const allowed = new Set([
+      'P','BR','STRONG','B','EM','I','U','S','H1','H2','H3','H4','H5','H6',
+      'UL','OL','LI','BLOCKQUOTE','PRE','CODE','A','TABLE','THEAD','TBODY',
+      'TFOOT','TR','TH','TD','DIV','SPAN','HR','IMG'
+    ]);
+
+    const elements = Array.from(template.content.querySelectorAll('*'));
+
+    for (const el of elements) {
+      if (!allowed.has(el.tagName)) {
+        if (['SCRIPT','STYLE','IFRAME','OBJECT','EMBED','FORM','SVG','MATH'].includes(el.tagName)) {
+          el.remove();
+        } else {
+          el.replaceWith(...Array.from(el.childNodes));
+        }
+        continue;
+      }
+
+      for (const attr of Array.from(el.attributes)) {
+        const name = attr.name.toLowerCase();
+
+        if (name.startsWith('on') || name === 'style' || name === 'srcdoc') {
+          el.removeAttribute(attr.name);
+          continue;
+        }
+
+        const common = ['class','title','dir','lang','colspan','rowspan'];
+        const allowedForTag =
+          common.includes(name) ||
+          (el.tagName === 'A' && ['href','target','rel'].includes(name)) ||
+          (el.tagName === 'IMG' && ['src','alt','width','height','loading'].includes(name));
+
+        if (!allowedForTag && !name.startsWith('aria-')) {
+          el.removeAttribute(attr.name);
+        }
+      }
+
+      if (el.tagName === 'A') {
+        const href = this.safeUrl(el.getAttribute('href') || '');
+        if (!href) el.removeAttribute('href');
+        else el.setAttribute('href', href);
+
+        if (el.getAttribute('target') === '_blank') {
+          el.setAttribute('rel', 'noopener noreferrer');
+        }
+      }
+
+      if (el.tagName === 'IMG') {
+        const src = this.safeUrl(el.getAttribute('src') || '', { image: true });
+        if (!src) el.remove();
+        else {
+          el.setAttribute('src', src);
+          el.setAttribute('loading', 'lazy');
+        }
+      }
+    }
+
+    return template.innerHTML;
+  },
+
   cssSize(value, fallback = '14px') {
     const v = String(value ?? '').trim();
     if (!v) return fallback;
@@ -179,9 +265,10 @@ window.Store = {
           ? (s.header_title_font_family_ar || "'Noto Sans Arabic', sans-serif")
           : (s.header_title_font_family || "'Montserrat', sans-serif");
 
-      if (s.header_type === 'image' && s.logo_url) {
+      const safeLogoUrl = this.safeUrl(s.logo_url || '', { image: true });
+      if (s.header_type === 'image' && safeLogoUrl) {
         brand.innerHTML = `
-          <img class="site-logo" src="${this.escAttr(s.logo_url)}" alt="${this.escAttr(name)}">
+          <img class="site-logo" src="${this.escAttr(safeLogoUrl)}" alt="${this.escAttr(name)}">
         `;
       } else {
         brand.innerHTML = `<h1 id="site-title">${this.esc(name)}</h1>`;
@@ -205,11 +292,13 @@ window.Store = {
     document.title = name;
 
     const social = [];
-    if (s.show_social_icons && s.instagram_url) {
-      social.push(`<a class="btn" target="_blank" rel="noopener" href="${this.escAttr(s.instagram_url)}">Instagram</a>`);
+    const instagramUrl = this.safeUrl(s.instagram_url || '');
+    const whatsappUrl = this.safeUrl(s.whatsapp_url || '');
+    if (s.show_social_icons && instagramUrl) {
+      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(instagramUrl)}">Instagram</a>`);
     }
-    if (s.show_social_icons && s.whatsapp_url) {
-      social.push(`<a class="btn" target="_blank" rel="noopener" href="${this.escAttr(s.whatsapp_url)}">WhatsApp</a>`);
+    if (s.show_social_icons && whatsappUrl) {
+      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(whatsappUrl)}">WhatsApp</a>`);
     }
 
     const socialHost = document.getElementById('social-links');

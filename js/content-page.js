@@ -26,7 +26,7 @@ window.ContentPage = {
       : (data.content || data.content_ar || '');
 
     document.getElementById('public-page-title').textContent = title;
-    document.getElementById('public-page-content').innerHTML = html;
+    document.getElementById('public-page-content').innerHTML = PublicSite.sanitizeHtml(html);
     document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || 'StoreFront'}`;
 
     const meta = document.querySelector('meta[name="description"]');

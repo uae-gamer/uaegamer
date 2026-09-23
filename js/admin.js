@@ -6,6 +6,7 @@ window.Admin = {
     ['textbar','Text Bar'],
     ['users','Registered Users'],
     ['audit','Audit Log'],
+    ['security','Security Audit'],
     ['backup','Backup & Health'],
     ['email_templates','Email Templates'],
     ['email_log','Email Log'],
@@ -1182,6 +1183,53 @@ window.Admin = {
     `;
   },
 
+  async security() {
+    const host = document.getElementById('admin-body');
+    host.innerHTML = `
+      <h2>Security Audit</h2>
+      <p class="muted">
+        Live checks against the deployed Supabase database. This supplements—not replaces—
+        the Supabase Dashboard security advisors and RLS policy review.
+      </p>
+      <button id="run-security-audit" class="btn primary">Run Security Audit</button>
+      <div id="security-audit-results" style="margin-top:12px"></div>
+    `;
+
+    const resultHost = document.getElementById('security-audit-results');
+
+    document.getElementById('run-security-audit').onclick = async () => {
+      resultHost.innerHTML = '<div class="card">Running security checks…</div>';
+
+      const { data, error } = await db.rpc('storefront_security_audit');
+      if (error) {
+        resultHost.innerHTML = `<div class="alert err">${Store.esc(error.message)}</div>`;
+        return;
+      }
+
+      const checks = data?.checks || [];
+      const rank = { critical:0, warning:1, info:2, ok:3 };
+      checks.sort((a,b) => (rank[a.severity] ?? 9) - (rank[b.severity] ?? 9));
+
+      resultHost.innerHTML = `
+        <div class="security-checks">
+          ${checks.map(check => `
+            <section class="security-check security-${Store.escAttr(check.severity || 'info')}">
+              <div class="security-check-head">
+                <strong>${Store.esc(check.name || '')}</strong>
+                <span>${Store.esc(String(check.severity || 'info').toUpperCase())}</span>
+              </div>
+              <div>${Store.esc(check.message || '')}</div>
+              ${check.details !== null && check.details !== undefined
+                ? `<details><summary>Details</summary><pre>${Store.esc(JSON.stringify(check.details, null, 2))}</pre></details>`
+                : ''}
+            </section>
+          `).join('')}
+        </div>
+        <p class="muted">Checked: ${data?.checked_at ? new Date(data.checked_at).toLocaleString() : 'now'}</p>
+      `;
+    };
+  },
+
   async callAdminBackup(payload) {
     const { data, error } = await db.functions.invoke('admin-backup', { body: payload });
 
@@ -1453,7 +1501,7 @@ window.Admin = {
         Store.modal(`
           <h2>${Store.esc(subject)}</h2>
           <h3>HTML Preview</h3>
-          <div class="email-template-preview">${htmlBody}</div>
+          <div class="email-template-preview">${Store.sanitizeHtml(htmlBody)}</div>
           <h3>Plain-Text Preview</h3>
           <pre class="plain-email-preview">${Store.esc(textBody)}</pre>
         `);

@@ -15,6 +15,81 @@ window.PublicSite = {
 
   escAttr(v) { return this.esc(v); },
 
+  safeUrl(value, { image = false } = {}) {
+    const raw = String(value ?? '').trim();
+    if (!raw) return '';
+
+    try {
+      const url = new URL(raw, location.href);
+      const protocol = url.protocol.toLowerCase();
+
+      if (image && protocol === 'data:') {
+        return /^data:image\/(?:png|jpe?g|gif|webp);/i.test(raw) ? raw : '';
+      }
+
+      if (['http:','https:'].includes(protocol)) return url.href;
+      if (!image && ['mailto:','tel:'].includes(protocol)) return url.href;
+    } catch (_) {}
+
+    return '';
+  },
+
+  sanitizeHtml(html) {
+    const template = document.createElement('template');
+    template.innerHTML = String(html ?? '');
+
+    const allowed = new Set([
+      'P','BR','STRONG','B','EM','I','U','S','H1','H2','H3','H4','H5','H6',
+      'UL','OL','LI','BLOCKQUOTE','PRE','CODE','A','TABLE','THEAD','TBODY',
+      'TFOOT','TR','TH','TD','DIV','SPAN','HR','IMG'
+    ]);
+
+    for (const el of Array.from(template.content.querySelectorAll('*'))) {
+      if (!allowed.has(el.tagName)) {
+        if (['SCRIPT','STYLE','IFRAME','OBJECT','EMBED','FORM','SVG','MATH'].includes(el.tagName)) {
+          el.remove();
+        } else {
+          el.replaceWith(...Array.from(el.childNodes));
+        }
+        continue;
+      }
+
+      for (const attr of Array.from(el.attributes)) {
+        const name = attr.name.toLowerCase();
+        if (name.startsWith('on') || name === 'style' || name === 'srcdoc') {
+          el.removeAttribute(attr.name);
+          continue;
+        }
+
+        const common = ['class','title','dir','lang','colspan','rowspan'];
+        const ok =
+          common.includes(name) ||
+          (el.tagName === 'A' && ['href','target','rel'].includes(name)) ||
+          (el.tagName === 'IMG' && ['src','alt','width','height','loading'].includes(name));
+
+        if (!ok && !name.startsWith('aria-')) el.removeAttribute(attr.name);
+      }
+
+      if (el.tagName === 'A') {
+        const href = this.safeUrl(el.getAttribute('href') || '');
+        if (!href) el.removeAttribute('href');
+        else el.setAttribute('href', href);
+        if (el.getAttribute('target') === '_blank') el.setAttribute('rel','noopener noreferrer');
+      }
+
+      if (el.tagName === 'IMG') {
+        const src = this.safeUrl(el.getAttribute('src') || '', { image:true });
+        if (!src) el.remove();
+        else {
+          el.setAttribute('src', src);
+          el.setAttribute('loading','lazy');
+        }
+      }
+    }
+
+    return template.innerHTML;
+  },
+
   cssSize(value, fallback='14px') {
     const v = String(value ?? '').trim();
     if (!v) return fallback;
@@ -64,8 +139,9 @@ window.PublicSite = {
     const brand = document.getElementById('public-brand');
 
     if (brand) {
-      if (s.header_type === 'image' && s.logo_url) {
-        brand.innerHTML = `<a href="./index.html#home"><img class="site-logo" src="${this.escAttr(s.logo_url)}" alt="${this.escAttr(name)}"></a>`;
+      const safeLogoUrl = this.safeUrl(s.logo_url || '', { image:true });
+      if (s.header_type === 'image' && safeLogoUrl) {
+        brand.innerHTML = `<a href="./index.html#home"><img class="site-logo" src="${this.escAttr(safeLogoUrl)}" alt="${this.escAttr(name)}"></a>`;
       } else {
         brand.innerHTML = `<a class="public-brand-link" href="./index.html#home"><h1>${this.esc(name)}</h1></a>`;
         const h = brand.querySelector('h1');
