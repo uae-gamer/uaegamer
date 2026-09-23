@@ -143,11 +143,44 @@ window.Store = {
     const name = localize(s, 'site_name') || 'StoreFront';
     const description = localize(s, 'site_description') || '';
 
+    const brand = document.getElementById('brand');
     const title = document.getElementById('site-title');
     const subtitle = document.getElementById('site-subtitle');
     const footerName = document.getElementById('footer-name');
 
-    if (title) title.textContent = name;
+    document.documentElement.style.fontSize = s.font_size || '14px';
+    document.body.style.fontFamily =
+      this.state.lang === 'ar'
+        ? (s.font_family_ar || "'Noto Sans Arabic', sans-serif")
+        : (s.font_family || "'Noto Sans', sans-serif");
+
+    if (brand) {
+      const headerFont =
+        this.state.lang === 'ar'
+          ? (s.header_title_font_family_ar || "'Noto Sans Arabic', sans-serif")
+          : (s.header_title_font_family || "'Montserrat', sans-serif");
+
+      if (s.header_type === 'image' && s.logo_url) {
+        brand.innerHTML = `
+          <img class="site-logo" src="${this.escAttr(s.logo_url)}" alt="${this.escAttr(name)}">
+        `;
+      } else {
+        brand.innerHTML = `<h1 id="site-title">${this.esc(name)}</h1>`;
+        const h = brand.querySelector('h1');
+        h.style.fontFamily = headerFont;
+        h.style.fontSize = s.header_title_font_size || '2.5rem';
+
+        if (s.header_type === 'gradient') {
+          h.classList.add('gradient-title');
+          h.style.setProperty('--g1', s.gradient_color_1 || '#ff007f');
+          h.style.setProperty('--g2', s.gradient_color_2 || '#7f00ff');
+          h.style.setProperty('--g3', s.gradient_color_3 || '#00e5ff');
+          h.style.setProperty('--g4', s.gradient_color_4 || '#00ff7f');
+          h.style.setProperty('--g5', s.gradient_color_5 || '#ffbe00');
+        }
+      }
+    }
+
     if (subtitle) subtitle.textContent = description;
     if (footerName) footerName.textContent = name;
     document.title = name;
@@ -667,16 +700,25 @@ window.Store = {
 
     document.getElementById('contact-form').onsubmit = async event => {
       event.preventDefault();
-      const fd = new FormData(event.currentTarget);
+      const form = event.currentTarget;
+      const fd = new FormData(form);
+
       const { error } = await db.from('messages').insert({
         user_id: this.state.user.id,
         email: String(fd.get('email')||'').trim(),
         type: String(fd.get('type')||'').trim(),
         message: String(fd.get('message')||'').trim()
       });
-      if (error) return this.alert('Unable to send message: ' + error.message, 'err');
-      event.currentTarget.reset();
-      event.currentTarget.querySelector('[name="email"]').value = this.state.user.email || '';
+
+      if (error) {
+        this.alert('Unable to send message: ' + error.message, 'err');
+        return;
+      }
+
+      form.reset();
+      const emailField = form.querySelector('[name="email"]');
+      if (emailField) emailField.value = this.state.user.email || '';
+
       this.alert('Your message has been sent successfully.');
     };
   },

@@ -4,13 +4,15 @@ window.Admin = {
     ['categories','Categories'],
     ['types','Types'],
     ['textbar','Text Bar'],
+    ['users','Registered Users'],
     ['orders','Orders'],
     ['report','Revenue Report'],
     ['statistics','Statistics & Reports'],
     ['messages','Messages'],
     ['pages','Footer Pages'],
     ['guides','Guide Pages'],
-    ['settings','Site Settings']
+    ['settings','Site Settings'],
+    ['csv','CSV Data']
   ],
 
   async render(tab='items') {
@@ -872,74 +874,534 @@ window.Admin = {
     });
   },
 
-  pages() { return this.contentTable('pages','Footer Pages'); },
-  guides() { return this.contentTable('guide_pages','Guide Pages'); },
+  async users() {
+    const { data, error } = await db
+      .from('profiles')
+      .select('*')
+      .order('created_at', { ascending: false });
 
-  async contentTable(table,title) {
-    const {data,error} = await db.from(table).select('*');
     if (error) return this.err(error);
 
+    const rows = data || [];
     document.getElementById('admin-body').innerHTML = `
-      <h2>${title}</h2>
-      ${(data||[]).map(x => `
-        <div class="card">
-          <strong>${Store.esc(x.title||x.page_key||x.slug||'Page')}</strong>
-          <div class="description">${Store.esc((x.content||'').slice(0,250))}</div>
-        </div>
-      `).join('') || '<div class="card">No pages yet.</div>'}
-      <p class="muted">Full rich page editing will be added in a later milestone.</p>
+      <h2>Manage Registered Users (${rows.length})</h2>
+      <p class="muted">
+        This page manages profile information stored in Supabase. Login email/password and
+        permanent Auth-user deletion require a trusted server-side Admin API and are intentionally
+        not exposed from GitHub Pages.
+      </p>
+
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>Username</th><th>Name</th><th>Mobile</th><th>Role</th>
+              <th>Registered</th><th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows.map(u => `
+              <tr>
+                <td>${Store.esc(u.username||'')}</td>
+                <td>${Store.esc(`${u.first_name||''} ${u.last_name||''}`.trim())}</td>
+                <td>${Store.esc(u.mobile_number||'')}</td>
+                <td>${Store.esc(u.role||'customer')}</td>
+                <td>${u.created_at ? new Date(u.created_at).toLocaleString() : ''}</td>
+                <td><button class="btn edit-user" data-id="${u.id}">Edit Profile</button></td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+      <div id="user-editor"></div>
     `;
+
+    document.querySelectorAll('.edit-user').forEach(btn => {
+      btn.onclick = () => this.editUserProfile(rows.find(x => x.id === btn.dataset.id));
+    });
+  },
+
+  editUserProfile(user) {
+    if (!user) return;
+
+    const host = document.getElementById('user-editor');
+    host.innerHTML = `
+      <form id="user-profile-form" class="panel">
+        <h3>Edit Registered User: ${Store.esc(user.username||'')}</h3>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>Username</label>
+            <input name="username" value="${Store.escAttr(user.username||'')}" required>
+          </div>
+          <div class="form-group">
+            <label>Role</label>
+            <select name="role">
+              <option value="customer" ${user.role==='customer'?'selected':''}>Customer</option>
+              <option value="admin" ${user.role==='admin'?'selected':''}>Admin</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>First Name</label>
+            <input name="first_name" value="${Store.escAttr(user.first_name||'')}">
+          </div>
+          <div class="form-group">
+            <label>Last Name</label>
+            <input name="last_name" value="${Store.escAttr(user.last_name||'')}">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>Mobile Number</label>
+          <input name="mobile_number" value="${Store.escAttr(user.mobile_number||'')}">
+        </div>
+
+        <div class="form-group">
+          <label>Delivery Address</label>
+          <textarea name="delivery_address" rows="3">${Store.esc(user.delivery_address||'')}</textarea>
+        </div>
+
+        <button class="btn success">Save User Profile</button>
+        <button type="button" id="close-user-editor" class="btn secondary">Cancel</button>
+      </form>
+    `;
+
+    document.getElementById('close-user-editor').onclick = () => host.innerHTML = '';
+
+    document.getElementById('user-profile-form').onsubmit = async event => {
+      event.preventDefault();
+      const form = event.currentTarget;
+      const fd = new FormData(form);
+
+      const payload = {
+        username: String(fd.get('username')||'').trim(),
+        first_name: String(fd.get('first_name')||'').trim() || null,
+        last_name: String(fd.get('last_name')||'').trim() || null,
+        mobile_number: String(fd.get('mobile_number')||'').trim() || null,
+        delivery_address: String(fd.get('delivery_address')||'').trim() || null,
+        role: fd.get('role')
+      };
+
+      const result = await db.from('profiles').update(payload).eq('id', user.id);
+      if (result.error) return this.err(result.error);
+
+      Store.alert('User profile updated.');
+      if (user.id === Store.state.user?.id) await Auth.refresh();
+      await this.users();
+    };
+  },
+
+  pages() {
+    return this.manageContentPages('pages','Footer Pages');
+  },
+
+  guides() {
+    return this.manageContentPages('guide_pages','Guide Pages');
+  },
+
+  async manageContentPages(table, title) {
+    const { data, error } = await db.from(table).select('*').order('created_at', { ascending: true });
+    if (error) return this.err(error);
+
+    const rows = data || [];
+    document.getElementById('admin-body').innerHTML = `
+      <h2>Manage ${title}</h2>
+      <p class="muted">Edit English/Arabic titles and HTML content. Enabled pages are available to visitors.</p>
+
+      ${rows.map((row, index) => `
+        <form class="panel content-page-form" data-id="${row.id}">
+          <h3>${Store.esc(row.page_key || row.slug || row.title || `${title} ${index+1}`)}</h3>
+
+          <div class="bilingual">
+            <div class="form-group">
+              <label>Title - English</label>
+              <input name="title" value="${Store.escAttr(row.title||'')}" required>
+            </div>
+            <div class="form-group">
+              <label>Title - Arabic</label>
+              <input name="title_ar" dir="rtl" value="${Store.escAttr(row.title_ar||'')}">
+            </div>
+          </div>
+
+          <div class="bilingual">
+            <div class="form-group">
+              <label>HTML Content - English</label>
+              <textarea name="content" rows="8">${Store.esc(row.content||'')}</textarea>
+            </div>
+            <div class="form-group">
+              <label>HTML Content - Arabic</label>
+              <textarea name="content_ar" rows="8" dir="rtl">${Store.esc(row.content_ar||'')}</textarea>
+            </div>
+          </div>
+
+          <label>
+            <input type="checkbox" name="enabled" style="width:auto" ${row.enabled===false?'':'checked'}>
+            Enable / Show
+          </label>
+
+          <div style="margin-top:10px">
+            <button class="btn success">Save Page</button>
+          </div>
+        </form>
+      `).join('') || '<div class="card">No pages exist yet.</div>'}
+    `;
+
+    document.querySelectorAll('.content-page-form').forEach(form => {
+      form.onsubmit = async event => {
+        event.preventDefault();
+        const f = event.currentTarget;
+        const fd = new FormData(f);
+
+        const payload = {
+          title: String(fd.get('title')||'').trim(),
+          title_ar: String(fd.get('title_ar')||'').trim() || null,
+          content: String(fd.get('content')||''),
+          content_ar: String(fd.get('content_ar')||'') || null,
+          enabled: fd.has('enabled')
+        };
+
+        const result = await db.from(table).update(payload).eq('id', f.dataset.id);
+        if (result.error) return this.err(result.error);
+
+        Store.alert('Page updated.');
+        await Store.footer();
+      };
+    });
   },
 
   async settings() {
-    const {data,error} = await db.from('site_settings').select('*').eq('id',1).single();
+    const { data, error } = await db.from('site_settings').select('*').eq('id',1).single();
     if (error) return this.err(error);
 
     document.getElementById('admin-body').innerHTML = `
-      <h2>Site Settings</h2>
+      <h2>Site Configuration & Customization</h2>
 
       <form id="settings-form" class="panel">
         <div class="bilingual">
+          <div class="form-group"><label>Site Name - English</label>
+            <input name="site_name" value="${Store.escAttr(data.site_name||'')}" required></div>
+          <div class="form-group"><label>Site Name - Arabic</label>
+            <input name="site_name_ar" dir="rtl" value="${Store.escAttr(data.site_name_ar||'')}" required></div>
+        </div>
+
+        <div class="bilingual">
+          <div class="form-group"><label>Site Description - English</label>
+            <input name="site_description" value="${Store.escAttr(data.site_description||'')}"></div>
+          <div class="form-group"><label>Site Description - Arabic</label>
+            <input name="site_description_ar" dir="rtl" value="${Store.escAttr(data.site_description_ar||'')}"></div>
+        </div>
+
+        <div class="bilingual">
           <div class="form-group">
-            <label>Site Name</label>
-            <input name="site_name" value="${Store.escAttr(data.site_name||'')}">
+            <label>Header Display Mode</label>
+            <select name="header_type">
+              <option value="text" ${data.header_type==='text'?'selected':''}>Text Title</option>
+              <option value="image" ${data.header_type==='image'?'selected':''}>Logo Image URL</option>
+              <option value="gradient" ${data.header_type==='gradient'?'selected':''}>Animated Gradient Text</option>
+            </select>
           </div>
           <div class="form-group">
-            <label>Site Name Arabic</label>
-            <input name="site_name_ar" dir="rtl" value="${Store.escAttr(data.site_name_ar||'')}">
+            <label>Logo Image URL</label>
+            <input name="logo_url" type="url" value="${Store.escAttr(data.logo_url||'')}">
           </div>
         </div>
 
-        <div class="form-group">
-          <label>Description</label>
-          <input name="site_description" value="${Store.escAttr(data.site_description||'')}">
+        <div class="bilingual">
+          <div class="form-group"><label>Primary Theme Color</label>
+            <input name="theme_color" type="color" value="${Store.escAttr(data.theme_color||'#0066cc')}"></div>
+          <div class="form-group"><label>Default Theme Mode</label>
+            <select name="theme_mode">
+              <option value="light" ${data.theme_mode==='light'?'selected':''}>Light Mode</option>
+              <option value="dark" ${data.theme_mode==='dark'?'selected':''}>Dark Mode</option>
+            </select></div>
         </div>
 
-        <div class="form-group">
-          <label>Description Arabic</label>
-          <input name="site_description_ar" dir="rtl" value="${Store.escAttr(data.site_description_ar||'')}">
+        <h3>Fonts</h3>
+        <div class="bilingual">
+          <div class="form-group"><label>Base Font - English</label>
+            <input name="font_family" value="${Store.escAttr(data.font_family||"'Noto Sans', sans-serif")}"></div>
+          <div class="form-group"><label>Base Font - Arabic</label>
+            <input name="font_family_ar" dir="ltr" value="${Store.escAttr(data.font_family_ar||"'Noto Sans Arabic', sans-serif")}"></div>
         </div>
 
-        <div class="form-group">
-          <label>Theme Color</label>
-          <input name="theme_color" type="color" value="${Store.escAttr(data.theme_color||'#0066cc')}">
+        <div class="form-group"><label>Base Font Size</label>
+          <input name="font_size" value="${Store.escAttr(data.font_size||'14px')}"></div>
+
+        <div class="bilingual">
+          <div class="form-group"><label>Header Title Font - English</label>
+            <input name="header_title_font_family" value="${Store.escAttr(data.header_title_font_family||"'Montserrat', sans-serif")}"></div>
+          <div class="form-group"><label>Header Title Font - Arabic</label>
+            <input name="header_title_font_family_ar" dir="ltr" value="${Store.escAttr(data.header_title_font_family_ar||"'Noto Sans Arabic', sans-serif")}"></div>
         </div>
 
-        <button class="btn success">Save Settings</button>
+        <div class="form-group"><label>Header Title Font Size</label>
+          <input name="header_title_font_size" value="${Store.escAttr(data.header_title_font_size||'2.5rem')}"></div>
+
+        <h3>Gradient Header Colors</h3>
+        <div class="gradient-settings">
+          ${[1,2,3,4,5].map(i => `
+            <label>Color ${i}
+              <input type="color" name="gradient_color_${i}"
+                     value="${Store.escAttr(data[`gradient_color_${i}`] || ['#ff007f','#7f00ff','#00e5ff','#00ff7f','#ffbe00'][i-1])}">
+            </label>`).join('')}
+        </div>
+
+        <h3>Social Media / Statistics</h3>
+        <label class="check-line">
+          <input type="checkbox" name="show_social_icons" style="width:auto" ${data.show_social_icons?'checked':''}>
+          Show Instagram and WhatsApp links
+        </label>
+
+        <div class="bilingual">
+          <div class="form-group"><label>Instagram URL</label>
+            <input type="url" name="instagram_url" value="${Store.escAttr(data.instagram_url||'')}"></div>
+          <div class="form-group"><label>WhatsApp URL</label>
+            <input type="url" name="whatsapp_url" value="${Store.escAttr(data.whatsapp_url||'')}"></div>
+        </div>
+
+        <label class="check-line">
+          <input type="checkbox" name="show_stats" style="width:auto" ${data.show_stats?'checked':''}>
+          Show Website Statistics Bar in Footer
+        </label>
+
+        <div style="margin-top:14px">
+          <button class="btn success">Save Settings</button>
+        </div>
       </form>
     `;
 
     document.getElementById('settings-form').onsubmit = async event => {
       event.preventDefault();
+      const form = event.currentTarget;
+      const fd = new FormData(form);
 
-      const payload = Object.fromEntries(new FormData(event.currentTarget));
+      const payload = {};
+      for (const [key,value] of fd.entries()) payload[key] = value;
+      payload.show_social_icons = fd.has('show_social_icons');
+      payload.show_stats = fd.has('show_stats');
+
       const result = await db.from('site_settings').update(payload).eq('id',1);
-
       if (result.error) return this.err(result.error);
 
       await Store.loadSettings();
       Store.applySettings();
-      Store.alert('Settings saved.');
+      Store.alert('Site settings saved.');
+    };
+  },
+
+  csvEscape(value) {
+    const s = String(value ?? '');
+    return `"${s.replaceAll('"','""')}"`;
+  },
+
+  downloadCsv(filename, headers, rows) {
+    const body = [
+      headers.map(x => this.csvEscape(x)).join(','),
+      ...rows.map(row => headers.map(h => this.csvEscape(row[h])).join(','))
+    ].join('\r\n');
+
+    const blob = new Blob(['\uFEFF' + body], {type:'text/csv;charset=utf-8'});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  parseCsv(text) {
+    const rows = [];
+    let row = [], field = '', quoted = false;
+
+    for (let i=0; i<text.length; i++) {
+      const ch = text[i];
+
+      if (quoted) {
+        if (ch === '"') {
+          if (text[i+1] === '"') {
+            field += '"';
+            i++;
+          } else {
+            quoted = false;
+          }
+        } else {
+          field += ch;
+        }
+      } else {
+        if (ch === '"') quoted = true;
+        else if (ch === ',') {
+          row.push(field);
+          field = '';
+        } else if (ch === '\n') {
+          row.push(field.replace(/\r$/,''));
+          rows.push(row);
+          row = [];
+          field = '';
+        } else {
+          field += ch;
+        }
+      }
+    }
+
+    if (field.length || row.length) {
+      row.push(field.replace(/\r$/,''));
+      rows.push(row);
+    }
+
+    const clean = rows.filter(r => r.some(v => String(v).trim() !== ''));
+    if (!clean.length) return [];
+
+    const headers = clean[0].map((h,i) =>
+      (i===0 ? h.replace(/^\uFEFF/,'') : h).trim()
+    );
+
+    return clean.slice(1).map(values => {
+      const obj = {};
+      headers.forEach((h,i) => obj[h] = values[i] ?? '');
+      return obj;
+    });
+  },
+
+  async csv() {
+    document.getElementById('admin-body').innerHTML = `
+      <h2>CSV Data Import & Export</h2>
+      <p class="muted">
+        Listed Items and Included Content use separate CSV files. Included Content uses one row
+        per entry so very large lists are not limited by spreadsheet-cell length.
+      </p>
+
+      <div class="card csv-actions">
+        <button id="export-items" class="btn secondary">Export Listed Items CSV</button>
+        <button id="export-content" class="btn secondary">Export Included Content CSV</button>
+      </div>
+
+      <div class="admin-grid">
+        <form id="import-items-form" class="panel">
+          <h3>Import Listed Items CSV</h3>
+          <input id="items-csv-file" type="file" accept=".csv,text/csv" required>
+          <p class="muted">Existing UUID rows are updated; rows without an ID are inserted.</p>
+          <button class="btn success">Import Listed Items CSV</button>
+        </form>
+
+        <form id="import-content-form" class="panel">
+          <h3>Import Included Content CSV</h3>
+          <input id="content-csv-file" type="file" accept=".csv,text/csv" required>
+          <p class="muted">product_id must refer to an existing listed item.</p>
+          <button class="btn success">Import Included Content CSV</button>
+        </form>
+      </div>
+    `;
+
+    document.getElementById('export-items').onclick = async () => {
+      const { data, error } = await db.from('products').select('*').order('sort_order');
+      if (error) return this.err(error);
+
+      const headers = [
+        'id','title','title_ar','description','description_ar',
+        'price_usd','discounted_price_usd','stock_quantity','status',
+        'paypal_link','category_id','type_id','sort_order','active'
+      ];
+      this.downloadCsv(`listed_items_export_${new Date().toISOString().slice(0,10)}.csv`, headers, data||[]);
+      Store.alert('Listed Items CSV exported.');
+    };
+
+    document.getElementById('export-content').onclick = async () => {
+      const { data, error } = await db.from('included_content').select('*').order('product_id').order('sort_order');
+      if (error) return this.err(error);
+
+      const headers = ['id','product_id','name','sort_order'];
+      this.downloadCsv(`included_content_export_${new Date().toISOString().slice(0,10)}.csv`, headers, data||[]);
+      Store.alert('Included Content CSV exported.');
+    };
+
+    document.getElementById('import-items-form').onsubmit = async event => {
+      event.preventDefault();
+      const file = document.getElementById('items-csv-file').files[0];
+      if (!file) return;
+
+      const rows = this.parseCsv(await file.text());
+      if (!rows.length) return this.err(new Error('CSV contains no data rows.'));
+
+      let inserted = 0, updated = 0;
+
+      for (const row of rows) {
+        const payload = {
+          title: String(row.title||'').trim(),
+          title_ar: String(row.title_ar||'').trim() || null,
+          description: row.description || null,
+          description_ar: row.description_ar || null,
+          price_usd: Number(row.price_usd||0),
+          discounted_price_usd: String(row.discounted_price_usd||'').trim()
+            ? Number(row.discounted_price_usd) : null,
+          stock_quantity: Math.max(0, Number(row.stock_quantity||0)),
+          status: row.status || 'out_of_stock',
+          paypal_link: row.paypal_link || null,
+          category_id: row.category_id || null,
+          type_id: row.type_id || null,
+          sort_order: Number(row.sort_order||999999),
+          active: !['0','false','no'].includes(String(row.active||'true').toLowerCase())
+        };
+
+        if (!payload.title) return this.err(new Error('Every product row requires a title.'));
+
+        let result;
+        if (String(row.id||'').trim()) {
+          result = await db.from('products').update(payload).eq('id', row.id.trim());
+          updated++;
+        } else {
+          result = await db.from('products').insert(payload);
+          inserted++;
+        }
+
+        if (result.error) return this.err(result.error);
+      }
+
+      await Products.load();
+      Store.alert(`CSV import completed: ${inserted} inserted, ${updated} updated.`);
+    };
+
+    document.getElementById('import-content-form').onsubmit = async event => {
+      event.preventDefault();
+      const file = document.getElementById('content-csv-file').files[0];
+      if (!file) return;
+
+      const rows = this.parseCsv(await file.text());
+      if (!rows.length) return this.err(new Error('CSV contains no data rows.'));
+
+      let inserted = 0, updated = 0;
+
+      for (const row of rows) {
+        if (!row.product_id || !row.name) {
+          return this.err(new Error('Every Included Content row requires product_id and name.'));
+        }
+
+        const payload = {
+          product_id: row.product_id.trim(),
+          name: row.name,
+          name_ar: null,
+          sort_order: Number(row.sort_order||0)
+        };
+
+        let result;
+        if (String(row.id||'').trim()) {
+          result = await db.from('included_content').update(payload).eq('id', row.id.trim());
+          updated++;
+        } else {
+          result = await db.from('included_content').insert(payload);
+          inserted++;
+        }
+
+        if (result.error) return this.err(result.error);
+      }
+
+      await Products.load();
+      Store.alert(`Included Content import completed: ${inserted} inserted, ${updated} updated.`);
     };
   }
+
 };
