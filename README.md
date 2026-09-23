@@ -1,19 +1,16 @@
-# StoreFront Step 21
+# StoreFront Step 22
 
-Final security / production-hardening milestone.
+Final performance/reliability milestone before infrastructure freeze.
 
-1. Run `STEP21-SQL.sql`
-2. Upload website files while preserving your working `js/config.js`
-3. Open Admin → Security Audit and run the live checks
-4. Follow `STEP21-SECURITY.md`
+No SQL and no Edge Function redeployment are required.
 
-No Edge Function redeployment and no new secrets are required.
+Upload the Step 22 website files while preserving `js/config.js`.
+
+See `STEP22-RELIABILITY.md`.
 
 Main changes:
-- hardened PostgreSQL function privileges/search paths
-- profile role-change defense-in-depth
-- customer order-update defense-in-depth
-- stored HTML sanitization
-- safe external URL handling
-- admin live security audit
-- referrer-policy hardening
+- request timeouts + retry
+- duplicate-submit/save protection
+- footer data caching
+- slow-network fallbacks
+- mobile/layout stability improvements
