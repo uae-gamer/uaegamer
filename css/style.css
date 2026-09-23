@@ -164,3 +164,11 @@ body{overflow-y:scroll}
 .email-sent{color:var(--success)}
 .email-failed{color:var(--danger)}
 .email-skipped{color:var(--desc)}
+
+.email-template-heading{display:flex;justify-content:space-between;gap:16px;align-items:start}
+.template-placeholders{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.template-placeholders code{padding:5px 7px;border:1px solid var(--border);border-radius:6px;background:var(--bg)}
+.code-editor{font-family:'Fira Code',monospace!important;font-size:.9rem!important;min-height:180px}
+.template-preview-actions{display:flex;gap:8px;flex-wrap:wrap}
+.email-template-preview{padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--card)}
+.plain-email-preview{white-space:pre-wrap;padding:16px;border:1px solid var(--border);border-radius:8px;background:var(--bg)}
