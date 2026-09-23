@@ -1684,6 +1684,38 @@ window.Admin = {
     const { data, error } = await db.from('site_settings').select('*').eq('id',1).single();
     if (error) return this.err(error);
 
+    const englishFonts = [
+      ["'Inter', sans-serif",'Inter'],
+      ["'Roboto', sans-serif",'Roboto'],
+      ["'Open Sans', sans-serif",'Open Sans'],
+      ["'Lato', sans-serif",'Lato'],
+      ["'Montserrat', sans-serif",'Montserrat'],
+      ["'Poppins', sans-serif",'Poppins'],
+      ["'Nunito', sans-serif",'Nunito'],
+      ["'Raleway', sans-serif",'Raleway'],
+      ["'Ubuntu', sans-serif",'Ubuntu'],
+      ["'Noto Sans', sans-serif",'Noto Sans'],
+      ["Tahoma, sans-serif",'Tahoma'],
+      ["Arial, sans-serif",'Arial']
+    ];
+
+    const arabicFonts = [
+      ["'Noto Sans Arabic', sans-serif",'Noto Sans Arabic'],
+      ["'Cairo', sans-serif",'Cairo'],
+      ["'Tajawal', sans-serif",'Tajawal'],
+      ["'Almarai', sans-serif",'Almarai'],
+      ["'IBM Plex Sans Arabic', sans-serif",'IBM Plex Sans Arabic'],
+      ["'Noto Kufi Arabic', sans-serif",'Noto Kufi Arabic'],
+      ["Tahoma, sans-serif",'Tahoma']
+    ];
+
+    const fontSelect = (name, value, options) => `
+      <select name="${name}">
+        ${options.map(([css,label]) =>
+          `<option value="${Store.escAttr(css)}" ${String(value||'')===css?'selected':''}>${Store.esc(label)}</option>`
+        ).join('')}
+      </select>`;
+
     document.getElementById('admin-body').innerHTML = `
       <h2>Site Configuration and Customization</h2>
 
@@ -1730,9 +1762,9 @@ window.Admin = {
         <h3>Fonts</h3>
         <div class="bilingual">
           <div class="form-group"><label>Base Font - English</label>
-            <input name="font_family" value="${Store.escAttr(data.font_family||"'Noto Sans', sans-serif")}"></div>
+            ${fontSelect('font_family', data.font_family||"'Noto Sans', sans-serif", englishFonts)}</div>
           <div class="form-group"><label>Base Font - Arabic</label>
-            <input name="font_family_ar" dir="ltr" value="${Store.escAttr(data.font_family_ar||"'Noto Sans Arabic', sans-serif")}"></div>
+            ${fontSelect('font_family_ar', data.font_family_ar||"'Noto Sans Arabic', sans-serif", arabicFonts)}</div>
         </div>
 
         <div class="form-group"><label>Base Font Size</label>
@@ -1740,9 +1772,9 @@ window.Admin = {
 
         <div class="bilingual">
           <div class="form-group"><label>Header Title Font - English</label>
-            <input name="header_title_font_family" value="${Store.escAttr(data.header_title_font_family||"'Montserrat', sans-serif")}"></div>
+            ${fontSelect('header_title_font_family', data.header_title_font_family||"'Montserrat', sans-serif", englishFonts)}</div>
           <div class="form-group"><label>Header Title Font - Arabic</label>
-            <input name="header_title_font_family_ar" dir="ltr" value="${Store.escAttr(data.header_title_font_family_ar||"'Noto Sans Arabic', sans-serif")}"></div>
+            ${fontSelect('header_title_font_family_ar', data.header_title_font_family_ar||"'Noto Sans Arabic', sans-serif", arabicFonts)}</div>
         </div>
 
         <div class="form-group"><label>Header Title Font Size</label>
@@ -1757,10 +1789,10 @@ window.Admin = {
             </label>`).join('')}
         </div>
 
-        <h3>Social Media / Statistics</h3>
+        <h3>Social Media and Footer Features</h3>
         <label class="check-line">
           <input type="checkbox" name="show_social_icons" style="width:auto" ${data.show_social_icons?'checked':''}>
-          Show Instagram and WhatsApp links
+          Show social media links
         </label>
 
         <div class="bilingual">
@@ -1768,6 +1800,10 @@ window.Admin = {
             <input type="url" name="instagram_url" value="${Store.escAttr(data.instagram_url||'')}"></div>
           <div class="form-group"><label>WhatsApp URL</label>
             <input type="url" name="whatsapp_url" value="${Store.escAttr(data.whatsapp_url||'')}"></div>
+          <div class="form-group"><label>Snapchat URL</label>
+            <input type="url" name="snapchat_url" value="${Store.escAttr(data.snapchat_url||'')}"></div>
+          <div class="form-group"><label>TikTok URL</label>
+            <input type="url" name="tiktok_url" value="${Store.escAttr(data.tiktok_url||'')}"></div>
         </div>
 
         <label class="check-line">
@@ -1775,6 +1811,73 @@ window.Admin = {
           Show Website Statistics Bar in Footer
         </label>
 
+        <label class="check-line">
+          <input type="checkbox" name="show_notification_button" style="width:auto" ${data.show_notification_button!==false?'checked':''}>
+          Show Website Notification Button
+        </label>
+
+
+        <h3>Animated Background</h3>
+        <p class="muted">
+          Optional Vanta.js WebGL background. Vanta and Three.js are loaded only when this feature is enabled.
+          Devices requesting reduced motion will not run the animation.
+        </p>
+
+        <label class="check-line">
+          <input type="checkbox" name="vanta_enabled" style="width:auto" ${data.vanta_enabled?'checked':''}>
+          Enable Animated Vanta Background
+        </label>
+
+        <label class="check-line">
+          <input type="checkbox" name="vanta_mobile_enabled" style="width:auto" ${data.vanta_mobile_enabled?'checked':''}>
+          Enable Animated Background on Mobile
+        </label>
+
+        <div class="bilingual">
+          <div class="form-group"><label>Vanta Effect</label>
+            <select name="vanta_effect">
+              ${[
+                ['waves','Waves'],['birds','Birds'],['clouds','Clouds'],['fog','Fog'],
+                ['net','Net'],['cells','Cells'],['dots','Dots']
+              ].map(([value,label]) =>
+                `<option value="${value}" ${(data.vanta_effect||'waves')===value?'selected':''}>${label}</option>`
+              ).join('')}
+            </select>
+          </div>
+          <div class="form-group"><label>Animation Primary Color</label>
+            <input type="color" name="vanta_primary_color" value="${Store.escAttr(data.vanta_primary_color||data.theme_color||'#0066cc')}">
+          </div>
+          <div class="form-group"><label>Animation Background Color</label>
+            <input type="color" name="vanta_background_color" value="${Store.escAttr(data.vanta_background_color||'#101827')}">
+          </div>
+        </div>
+
+        <label class="check-line">
+          <input type="checkbox" name="vanta_mouse_controls" style="width:auto" ${data.vanta_mouse_controls!==false?'checked':''}>
+          Enable Mouse Interaction
+        </label>
+        <label class="check-line">
+          <input type="checkbox" name="vanta_touch_controls" style="width:auto" ${data.vanta_touch_controls!==false?'checked':''}>
+          Enable Touch Interaction
+        </label>
+
+        <h3>Website Favicon</h3>
+        <p class="muted">
+          PNG or ICO is recommended. JPG and WEBP are also accepted. Maximum file size: 2 MB.
+        </p>
+        ${data.favicon_url ? `
+          <div class="favicon-preview-row">
+            <img src="${Store.escAttr(data.favicon_url)}" alt="Current favicon" class="favicon-preview">
+            <a class="btn secondary" href="${Store.escAttr(data.favicon_url)}" target="_blank" rel="noopener noreferrer">Open Current Favicon</a>
+          </div>` : ''}
+        <div class="form-group">
+          <label>Upload New Favicon</label>
+          <input type="file" name="favicon_upload" accept=".png,.ico,.jpg,.jpeg,.webp,image/png,image/x-icon,image/vnd.microsoft.icon,image/jpeg,image/webp">
+        </div>
+        <label class="check-line">
+          <input type="checkbox" name="remove_favicon" style="width:auto">
+          Remove Current Favicon
+        </label>
 
         <h3>Transactional Email</h3>
         <p class="muted">
@@ -1830,17 +1933,95 @@ window.Admin = {
       const fd = new FormData(form);
 
       const payload = {};
-      for (const [key,value] of fd.entries()) payload[key] = value;
+      for (const [key,value] of fd.entries()) {
+        if (value instanceof File) continue;
+        if (key === 'remove_favicon') continue;
+        payload[key] = value;
+      }
+
       payload.show_social_icons = fd.has('show_social_icons');
       payload.show_stats = fd.has('show_stats');
+      payload.show_notification_button = fd.has('show_notification_button');
+      payload.vanta_enabled = fd.has('vanta_enabled');
+      payload.vanta_mobile_enabled = fd.has('vanta_mobile_enabled');
+      payload.vanta_mouse_controls = fd.has('vanta_mouse_controls');
+      payload.vanta_touch_controls = fd.has('vanta_touch_controls');
       payload.send_welcome_email = fd.has('send_welcome_email');
       payload.send_order_customer_emails = fd.has('send_order_customer_emails');
       payload.send_admin_new_order_email = fd.has('send_admin_new_order_email');
+
+      const faviconFile = fd.get('favicon_upload');
+      const removeFavicon = fd.has('remove_favicon');
+      const oldFaviconUrl = String(data.favicon_url || '');
+
+      if (removeFavicon) {
+        payload.favicon_url = null;
+      }
+
+      if (faviconFile instanceof File && faviconFile.size > 0) {
+        const fileExt = String(faviconFile.name || '').split('.').pop().toLowerCase();
+        const typeByExt = {
+          png:'image/png',
+          ico:'image/x-icon',
+          jpg:'image/jpeg',
+          jpeg:'image/jpeg',
+          webp:'image/webp'
+        };
+        const normalizedType = faviconFile.type || typeByExt[fileExt] || '';
+        const allowed = new Set([
+          'image/png','image/x-icon','image/vnd.microsoft.icon','image/jpeg','image/webp'
+        ]);
+
+        if (!allowed.has(normalizedType) || !['png','ico','jpg','jpeg','webp'].includes(fileExt)) {
+          Store.setBusy(submitButton, false);
+          return this.err(new Error('Unsupported favicon file type.'));
+        }
+
+        if (faviconFile.size > 2 * 1024 * 1024) {
+          Store.setBusy(submitButton, false);
+          return this.err(new Error('Favicon must be 2 MB or smaller.'));
+        }
+
+        const storedExt = fileExt === 'jpeg' ? 'jpg' : fileExt;
+        const path = `favicons/favicon-${Date.now()}-${crypto.randomUUID()}.${storedExt}`;
+
+        const upload = await db.storage.from('site-assets').upload(path, faviconFile, {
+          cacheControl: '3600',
+          upsert: false,
+          contentType: normalizedType
+        });
+
+        if (upload.error) {
+          Store.setBusy(submitButton, false);
+          return this.err(upload.error);
+        }
+
+        const publicUrl = db.storage.from('site-assets').getPublicUrl(path)?.data?.publicUrl;
+        if (!publicUrl) {
+          Store.setBusy(submitButton, false);
+          return this.err(new Error('Unable to obtain public favicon URL.'));
+        }
+
+        payload.favicon_url = publicUrl;
+      }
 
       const result = await db.from('site_settings').update(payload).eq('id',1);
       if (result.error) {
         Store.setBusy(submitButton, false);
         return this.err(result.error);
+      }
+
+      if ((removeFavicon || payload.favicon_url) && oldFaviconUrl && oldFaviconUrl !== payload.favicon_url) {
+        try {
+          const marker = '/storage/v1/object/public/site-assets/';
+          const pos = oldFaviconUrl.indexOf(marker);
+          if (pos >= 0) {
+            const oldPath = decodeURIComponent(oldFaviconUrl.slice(pos + marker.length).split('?')[0]);
+            await db.storage.from('site-assets').remove([oldPath]);
+          }
+        } catch (cleanupError) {
+          console.warn('Old favicon cleanup failed:', cleanupError);
+        }
       }
 
       // A settings save can affect global typography, header mode, colors and footer.

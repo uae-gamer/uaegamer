@@ -322,14 +322,36 @@ window.Store = {
     if (footerName) footerName.textContent = name;
     document.title = name;
 
+    FontLoader?.apply?.(s, this.state.lang);
+
+    let favicon = document.querySelector('link[data-site-favicon]');
+    if (!favicon) {
+      favicon = document.createElement('link');
+      favicon.rel = 'icon';
+      favicon.dataset.siteFavicon = '1';
+      document.head.appendChild(favicon);
+    }
+    if (s.favicon_url) favicon.href = s.favicon_url;
+    else favicon.removeAttribute('href');
+
+    VantaBackground?.apply?.(s).catch(error => console.error('Vanta background failed:', error));
+
     const social = [];
     const instagramUrl = this.safeUrl(s.instagram_url || '');
     const whatsappUrl = this.safeUrl(s.whatsapp_url || '');
+    const snapchatUrl = this.safeUrl(s.snapchat_url || '');
+    const tiktokUrl = this.safeUrl(s.tiktok_url || '');
     if (s.show_social_icons && instagramUrl) {
       social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(instagramUrl)}">Instagram</a>`);
     }
     if (s.show_social_icons && whatsappUrl) {
       social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(whatsappUrl)}">WhatsApp</a>`);
+    }
+    if (s.show_social_icons && snapchatUrl) {
+      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(snapchatUrl)}">Snapchat</a>`);
+    }
+    if (s.show_social_icons && tiktokUrl) {
+      social.push(`<a class="btn" target="_blank" rel="noopener noreferrer" href="${this.escAttr(tiktokUrl)}">TikTok</a>`);
     }
 
     const socialHost = document.getElementById('social-links');
@@ -420,7 +442,8 @@ window.Store = {
     if (!s.show_stats) { host?.remove(); return; }
     if (!host) {
       host = document.createElement('div'); host.id='public-stats'; host.className='stats-bar public-stats';
-      const footer=document.querySelector('footer.footer'); footer?.insertBefore(host,footer.querySelector('p'));
+      const footerPanel=document.querySelector('.footer-panel');
+      footerPanel?.appendChild(host);
     }
     const { data, error } = await db.rpc('public_store_stats');
     if (error) { console.error(error); host.innerHTML=''; return; }
@@ -453,7 +476,7 @@ window.Store = {
 
     if (!button || !badge || !list) return;
 
-    if (!this.state.user) {
+    if (this.state.settings?.show_notification_button === false || !this.state.user) {
       button.classList.add('hidden');
       badge.classList.add('hidden');
       list.innerHTML = '';
