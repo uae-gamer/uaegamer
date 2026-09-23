@@ -1,16 +1,12 @@
-# StoreFront Step 19
+# StoreFront Step 20
 
-Stability + editable transactional email templates.
+Backup, recovery and operational-safety milestone.
 
-Run `STEP19-SQL.sql`, redeploy the existing `transactional-email` Edge Function, then upload the website files while keeping `js/config.js`.
+1. Run `STEP20-SQL.sql`
+2. Deploy `supabase/functions/admin-backup/index.ts` as `admin-backup`
+3. Upload website files, preserving `js/config.js`
+4. Use Admin → Backup & Health
 
-See `STEP19-DEPLOY.md`.
+See `STEP20-RECOVERY.md`.
 
-Main changes:
-- same-session browser-tab return no longer rerenders active pages/forms
-- unsaved form unload protection
-- Admin → Email Templates
-- editable subjects, HTML bodies and plain-text bodies
-- HTML + plain-text Resend messages
-- template enable/disable controls
-- no Edge Function redeploy required for normal template wording changes
+No new Edge Function secrets are required.
