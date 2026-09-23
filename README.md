@@ -1,10 +1,10 @@
-# StoreFront Step 23
+# StoreFront Step 24
 
-Feature and layout modification batch.
+Appearance/footer/social/favicon modification batch.
 
-1. Run `STEP23-SQL.sql`
-2. Redeploy `admin-backup`
-3. Upload the website files while preserving `js/config.js`
-4. Replace the four old guide HTML files with the four `custom_page_*.html` files.
+1. Run `STEP24-SQL.sql`
+2. Upload website files while preserving `js/config.js`
+3. No Edge Function redeployment required
+4. Configure new options in Admin → Site Settings
 
-See `STEP23-DEPLOY.md`.
+See `STEP24-DEPLOY.md`.
