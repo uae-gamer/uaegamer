@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Privacy Policy">
+  <title>Privacy Policy</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Jersey+10&family=Montserrat:wght@400;600;700&family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+(function(){try{
+ const lang=localStorage.getItem('sf_lang')||'en';
+ const theme=localStorage.getItem('sf_theme')||'light';
+ const cached=JSON.parse(localStorage.getItem('sf_cached_settings')||'{}');
+ document.documentElement.lang=lang; document.documentElement.dir=lang==='ar'?'rtl':'ltr';
+ document.documentElement.dataset.theme=theme;
+ const st=document.documentElement.style;
+ if(cached.theme_color)st.setProperty('--primary',cached.theme_color);
+ if(cached.font_size)st.setProperty('--base-font-size',cached.font_size);
+ const bf=lang==='ar'?cached.font_family_ar:cached.font_family;
+ const hf=lang==='ar'?cached.header_title_font_family_ar:cached.header_title_font_family;
+ if(bf)st.setProperty('--body-font',bf); if(hf)st.setProperty('--header-font',hf);
+}catch(_){}})();
+</script>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body data-source="pages" data-page-key="privacy">
+<header>
+  <div class="shell">
+    <div id="public-brand" class="brand"></div>
+    <p id="public-subtitle" class="subtitle"></p>
+    <div class="toolbar public-toolbar">
+      <div><button class="mini" data-public-lang="en">English</button><button class="mini" data-public-lang="ar">العربية</button></div>
+      <div><a class="mini btn" href="./index.html#home">Store</a></div>
+      <div><button class="mini" data-public-theme="light">Light</button><button class="mini" data-public-theme="dark">Dark</button></div>
+    </div>
+  </div>
+</header>
+<main class="shell public-main">
+  <article class="panel standalone-content">
+    <h1 id="public-page-title"></h1>
+    <div id="public-page-content" class="managed-html-content"></div>
+  </article>
+</main>
+<footer class="shell footer">
+  <div id="public-footer-links" class="footer-links"></div>
+  <p>© <span id="public-year"></span> <span id="public-footer-name"></span>. All rights reserved.</p>
+</footer>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./js/config.js"></script>
+<script src="./js/supabase.js"></script>
+<script src="./js/public-common.js"></script>
+<script src="./js/content-page.js"></script>
+</body>
+</html>
