@@ -6,7 +6,18 @@ async refresh(){
 async login(email,password){const {error}=await db.auth.signInWithPassword({email,password});if(error)throw error;await this.refresh()},
 async register(fd){
  const email=fd.get('email'),password=fd.get('password');
- const {error}=await db.auth.signUp({email,password,options:{data:{username:fd.get('username'),first_name:fd.get('first_name'),last_name:fd.get('last_name')}}});
+ const {error}=await db.auth.signUp({
+  email,
+  password,
+  options:{
+    data:{
+      username:fd.get('username'),
+      first_name:fd.get('first_name'),
+      last_name:fd.get('last_name'),
+      mobile_number:fd.get('mobile_number')
+    }
+  }
+});
  if(error)throw error;
 },
 async logout(){await db.auth.signOut();await this.refresh()},

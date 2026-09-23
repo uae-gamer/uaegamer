@@ -148,11 +148,19 @@ window.Store = {
     const subtitle = document.getElementById('site-subtitle');
     const footerName = document.getElementById('footer-name');
 
-    document.documentElement.style.fontSize = s.font_size || '14px';
-    document.body.style.fontFamily =
+    document.documentElement.style.setProperty('--base-font-size', s.font_size || '14px');
+    document.documentElement.style.setProperty(
+      '--body-font',
       this.state.lang === 'ar'
         ? (s.font_family_ar || "'Noto Sans Arabic', sans-serif")
-        : (s.font_family || "'Noto Sans', sans-serif");
+        : (s.font_family || "'Noto Sans', sans-serif")
+    );
+    document.documentElement.style.setProperty(
+      '--header-font',
+      this.state.lang === 'ar'
+        ? (s.header_title_font_family_ar || "'Noto Sans Arabic', sans-serif")
+        : (s.header_title_font_family || "'Montserrat', sans-serif")
+    );
 
     if (brand) {
       const headerFont =
@@ -167,7 +175,7 @@ window.Store = {
       } else {
         brand.innerHTML = `<h1 id="site-title">${this.esc(name)}</h1>`;
         const h = brand.querySelector('h1');
-        h.style.fontFamily = headerFont;
+        h.style.fontFamily = 'var(--header-font)';
         h.style.fontSize = s.header_title_font_size || '2.5rem';
 
         if (s.header_type === 'gradient') {
@@ -202,7 +210,11 @@ window.Store = {
     const profile = this.state.profile;
     const user = this.state.user;
     const current = (location.hash || '#home').slice(1);
-    const navCurrent = current === 'checkout' ? 'cart' : current;
+    const navCurrent =
+      current === 'checkout' ? 'cart' :
+      current.startsWith('admin/') ? 'admin' :
+      current.startsWith('receipt/') ? 'orders' :
+      current;
 
     const links = [['home', t('home')], ['contact', this.state.lang === 'ar' ? 'اتصل بنا' : 'Contact']];
 
@@ -376,7 +388,10 @@ window.Store = {
     if (route === 'orders') return this.ordersView();
     if (route.startsWith('receipt/')) return this.receiptView(route.split('/')[1]);
     if (route === 'contact') return this.contactView();
-    if (route === 'admin') return Admin.render();
+    if (route === 'admin' || route.startsWith('admin/')) {
+      const adminTab = route.includes('/') ? route.split('/')[1] : 'items';
+      return Admin.render(adminTab);
+    }
 
     return Products.renderHome();
   },
@@ -453,6 +468,11 @@ window.Store = {
             <label>Last Name</label>
             <input name="last_name">
           </div>
+        </div>
+
+        <div class="form-group">
+          <label>Mobile Number</label>
+          <input name="mobile_number" type="tel" autocomplete="tel">
         </div>
 
         <div class="form-group">

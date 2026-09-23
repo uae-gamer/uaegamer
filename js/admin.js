@@ -30,7 +30,17 @@ window.Admin = {
       <div id="admin-body"></div>
     `);
 
-    document.querySelectorAll('[data-tab]').forEach(b => b.onclick = () => this.render(b.dataset.tab));
+    document.querySelectorAll('[data-tab]').forEach(b => {
+      b.onclick = () => {
+        const route = `admin/${b.dataset.tab}`;
+        if (location.hash.slice(1) === route) {
+          this.render(b.dataset.tab);
+        } else {
+          location.hash = route;
+        }
+      };
+    });
+
     await this[tab]();
   },
 
@@ -985,8 +995,17 @@ window.Admin = {
         role: fd.get('role')
       };
 
-      const result = await db.from('profiles').update(payload).eq('id', user.id);
-      if (result.error) return this.err(result.error);
+      const { error } = await db.rpc('admin_update_profile', {
+        p_user_id: user.id,
+        p_username: payload.username,
+        p_first_name: payload.first_name,
+        p_last_name: payload.last_name,
+        p_mobile_number: payload.mobile_number,
+        p_delivery_address: payload.delivery_address,
+        p_role: payload.role
+      });
+
+      if (error) return this.err(error);
 
       Store.alert('User profile updated.');
       if (user.id === Store.state.user?.id) await Auth.refresh();
