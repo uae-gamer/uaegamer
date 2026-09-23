@@ -1,17 +1,16 @@
-# StoreFront Step 18 — Transactional Emails
+# StoreFront Step 19
 
-Run `STEP18-SQL.sql`, deploy `transactional-email`, configure the two Edge Function secrets,
-and create the three database webhooks described in `STEP18-DEPLOY.md`.
+Stability + editable transactional email templates.
 
-New:
-- Resend-backed transactional emails
-- welcome email option
-- customer order submitted email
-- customer order status emails
-- optional admin new-order email
-- Admin → Email Log
-- email controls in Site Settings
+Run `STEP19-SQL.sql`, redeploy the existing `transactional-email` Edge Function, then upload the website files while keeping `js/config.js`.
 
-Keep your working `js/config.js`.
+See `STEP19-DEPLOY.md`.
 
-Do not upload the `supabase/` folder to GitHub Pages; it is backend deployment source only.
+Main changes:
+- same-session browser-tab return no longer rerenders active pages/forms
+- unsaved form unload protection
+- Admin → Email Templates
+- editable subjects, HTML bodies and plain-text bodies
+- HTML + plain-text Resend messages
+- template enable/disable controls
+- no Edge Function redeploy required for normal template wording changes
