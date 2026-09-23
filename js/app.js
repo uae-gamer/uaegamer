@@ -30,14 +30,18 @@ window.Store = {
   },
 
   alert(message, type = 'ok') {
-    const host = document.getElementById('alert-host');
+    const host = document.getElementById('toast-host');
     if (!host) return;
-    host.innerHTML = `<div class="alert ${type}">${this.esc(message)}</div>`;
+    const toast = document.createElement('div');
+    toast.className = `toast ${type}`;
+    toast.textContent = message;
+    host.appendChild(toast);
+    requestAnimationFrame(() => toast.classList.add('show'));
+    setTimeout(() => { toast.classList.remove('show'); setTimeout(() => toast.remove(), 250); }, 2800);
   },
 
   clearAlert() {
-    const host = document.getElementById('alert-host');
-    if (host) host.innerHTML = '';
+    document.getElementById('alert-host')?.replaceChildren();
   },
 
   modal(html) {
@@ -158,6 +162,7 @@ window.Store = {
 
     const socialHost = document.getElementById('social-links');
     if (socialHost) socialHost.innerHTML = social.join(' ');
+    this.renderPublicStats().catch(console.error);
   },
 
   renderNav() {
@@ -215,6 +220,32 @@ window.Store = {
 
     location.hash = route;
     await this.route();
+  },
+
+  visitorId() {
+    let id = localStorage.getItem('storefront_visitor_id');
+    if (!id) { id = crypto.randomUUID(); localStorage.setItem('storefront_visitor_id', id); }
+    return id;
+  },
+
+  async trackView() {
+    const route = (location.hash || '#home').slice(1);
+    if (route === 'admin' || route.startsWith('receipt/')) return;
+    const { error } = await db.rpc('track_page_view', { p_visitor_id: this.visitorId(), p_path: route || 'home' });
+    if (error) console.error('Analytics tracking failed:', error);
+  },
+
+  async renderPublicStats() {
+    const s = this.state.settings || {};
+    let host = document.getElementById('public-stats');
+    if (!s.show_stats) { host?.remove(); return; }
+    if (!host) {
+      host = document.createElement('div'); host.id='public-stats'; host.className='stats-bar public-stats';
+      const footer=document.querySelector('footer.footer'); footer?.insertBefore(host,footer.querySelector('p'));
+    }
+    const { data, error } = await db.rpc('public_store_stats');
+    if (error) { console.error(error); host.innerHTML=''; return; }
+    host.innerHTML = `<span class="stat-pill">Page Views: ${Number(data?.page_views||0).toLocaleString()}</span><span class="stat-pill">Unique Visitors: ${Number(data?.unique_visitors||0).toLocaleString()}</span><span class="stat-pill">Registered Members: ${Number(data?.registered_users||0).toLocaleString()}</span><span class="stat-pill">Users Online: ${Number(data?.online_users||0).toLocaleString()}</span>`;
   },
 
   async refreshShell() {
@@ -301,6 +332,7 @@ window.Store = {
   async route() {
     const route = (location.hash || '#home').slice(1);
     this.renderNav();
+    this.trackView().catch(console.error);
 
     if (route === 'home') return Products.renderHome();
     if (route === 'cart') return Cart.render();

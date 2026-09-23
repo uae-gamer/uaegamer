@@ -5,6 +5,8 @@ window.Admin = {
     ['types','Types'],
     ['textbar','Text Bar'],
     ['orders','Orders'],
+    ['report','Revenue Report'],
+    ['statistics','Statistics & Reports'],
     ['messages','Messages'],
     ['pages','Footer Pages'],
     ['guides','Guide Pages'],
@@ -768,6 +770,75 @@ window.Admin = {
         await this.orders();
       };
     });
+  },
+
+  async report() {
+    const { data: orders, error } = await db.from('orders').select('*,order_items(*)').order('created_at',{ascending:false});
+    if (error) return this.err(error);
+    const included=(orders||[]).filter(o=>!['cancelled','rejected'].includes(o.status));
+    let income=0, expenses=0, units=0;
+    const rows=included.map(order=>{
+      let orderIncome=0, orderExpense=0;
+      for(const item of (order.order_items||[])){
+        const qty=Number(item.quantity||0), unit=Number(item.unit_price_usd||0), subtotal=unit*qty;
+        orderIncome+=subtotal; units+=qty;
+        const list=Array.isArray(item.expenses_snapshot)?item.expenses_snapshot:[];
+        for(const exp of list){
+          const type=exp.type||exp.expense_type, value=Math.max(0,Number(exp.value??exp.expense_value??0));
+          if(type==='fixed') orderExpense+=value*qty;
+          else if(type==='percentage') orderExpense+=subtotal*(Math.min(100,value)/100);
+        }
+      }
+      income+=orderIncome; expenses+=orderExpense;
+      return {number:order.order_number,date:order.created_at,customer:`${order.first_name||''} ${order.last_name||''}`.trim(),status:order.status,income:orderIncome,expense:orderExpense,profit:orderIncome-orderExpense};
+    });
+    document.getElementById('admin-body').innerHTML=`<h2>Revenue Report</h2><p class="muted">Income is calculated from item selling prices only. Delivery charges, VAT and payment-gateway fees are excluded. Cancelled and rejected orders are excluded.</p><div class="stat-grid report-summary"><div class="stat"><span>Total Orders</span><strong>${rows.length.toLocaleString()}</strong></div><div class="stat"><span>Units Sold</span><strong>${units.toLocaleString()}</strong></div><div class="stat"><span>Item Income</span><strong>${income.toFixed(2)}</strong><small>USD</small></div><div class="stat"><span>Expenses</span><strong>${expenses.toFixed(2)}</strong><small>USD</small></div><div class="stat"><span>Net Revenue</span><strong>${(income-expenses).toFixed(2)}</strong><small>USD</small></div></div><div class="table-wrap"><table><thead><tr><th>Order</th><th>Date</th><th>Customer</th><th>Status</th><th>Income USD</th><th>Expenses USD</th><th>Net Revenue USD</th></tr></thead><tbody>${rows.map(r=>`<tr><td><strong>#${Store.esc(r.number)}</strong></td><td>${r.date?new Date(r.date).toLocaleString():''}</td><td>${Store.esc(r.customer)}</td><td>${Store.statusBadge?Store.statusBadge(r.status):Store.esc(r.status)}</td><td>${r.income.toFixed(2)}</td><td>${r.expense.toFixed(2)}</td><td><strong>${r.profit.toFixed(2)}</strong></td></tr>`).join('')}</tbody></table></div>`;
+  },
+
+  async statistics(period='daily') {
+    const body=document.getElementById('admin-body'); body.innerHTML='<div class="card">Loading statistics...</div>';
+    const results=await Promise.all([
+      db.from('analytics_daily').select('*').order('day'),
+      db.from('analytics_daily_visitors').select('day,visitor_id'),
+      db.from('analytics_monthly_visitors').select('month,visitor_id'),
+      db.from('analytics_visitors').select('visitor_id'),
+      db.from('analytics_presence').select('visitor_id,last_seen'),
+      db.from('profiles').select('id,role,created_at'),
+      db.from('orders').select('id,status,created_at,order_items(quantity,unit_price_usd)'),
+      db.from('messages').select('id,created_at')
+    ]);
+    const failed=results.find(r=>r.error); if(failed) return this.err(failed.error);
+    const [dailyR,dvR,mvR,vR,presR,profR,ordR,msgR]=results;
+    const daily=dailyR.data||[], dv=dvR.data||[], mv=mvR.data||[], visitors=vR.data||[], profiles=profR.data||[], messages=msgR.data||[];
+    const orders=(ordR.data||[]).filter(o=>!['cancelled','rejected'].includes(o.status));
+    const online=(presR.data||[]).filter(x=>Date.now()-new Date(x.last_seen).getTime()<=300000).length;
+    const kd=d=>new Date(d).toISOString().slice(0,10), km=d=>new Date(d).toISOString().slice(0,7);
+    let rows=[];
+    if(period==='daily'){
+      const keys=new Set(daily.map(x=>x.day)); profiles.forEach(p=>p.role==='customer'&&p.created_at&&keys.add(kd(p.created_at))); orders.forEach(o=>o.created_at&&keys.add(kd(o.created_at))); messages.forEach(m=>m.created_at&&keys.add(kd(m.created_at)));
+      rows=[...keys].sort().map(k=>{const tr=daily.find(x=>x.day===k)||{}, os=orders.filter(o=>kd(o.created_at)===k); const inc=os.reduce((a,o)=>a+(o.order_items||[]).reduce((s,i)=>s+Number(i.quantity||0)*Number(i.unit_price_usd||0),0),0); return {period:k,page_views:Number(tr.page_views||0),unique_visitors:dv.filter(x=>x.day===k).length,registered:profiles.filter(p=>p.role==='customer'&&p.created_at&&kd(p.created_at)===k).length,peak_online:Number(tr.peak_online||0),orders:os.length,income:inc,messages:messages.filter(m=>m.created_at&&kd(m.created_at)===k).length};});
+    } else if(period==='monthly'){
+      const keys=new Set(daily.map(x=>String(x.day).slice(0,7))); profiles.forEach(p=>p.role==='customer'&&p.created_at&&keys.add(km(p.created_at))); orders.forEach(o=>o.created_at&&keys.add(km(o.created_at))); messages.forEach(m=>m.created_at&&keys.add(km(m.created_at)));
+      rows=[...keys].sort().map(k=>{const tr=daily.filter(x=>String(x.day).slice(0,7)===k), os=orders.filter(o=>km(o.created_at)===k); const inc=os.reduce((a,o)=>a+(o.order_items||[]).reduce((s,i)=>s+Number(i.quantity||0)*Number(i.unit_price_usd||0),0),0); return {period:k,page_views:tr.reduce((s,x)=>s+Number(x.page_views||0),0),unique_visitors:mv.filter(x=>String(x.month).slice(0,7)===k).length,registered:profiles.filter(p=>p.role==='customer'&&p.created_at&&km(p.created_at)===k).length,peak_online:Math.max(0,...tr.map(x=>Number(x.peak_online||0))),orders:os.length,income:inc,messages:messages.filter(m=>m.created_at&&km(m.created_at)===k).length};});
+    } else {
+      const inc=orders.reduce((a,o)=>a+(o.order_items||[]).reduce((s,i)=>s+Number(i.quantity||0)*Number(i.unit_price_usd||0),0),0);
+      rows=[{period:'All Time',page_views:daily.reduce((s,x)=>s+Number(x.page_views||0),0),unique_visitors:visitors.length,registered:profiles.filter(p=>p.role==='customer').length,peak_online:Math.max(0,...daily.map(x=>Number(x.peak_online||0))),orders:orders.length,income:inc,messages:messages.length}];
+    }
+    const latest=rows.length?rows[rows.length-1]:{page_views:0,unique_visitors:0,registered:0,peak_online:0,orders:0,income:0,messages:0};
+    body.innerHTML=`<h2>Website Statistics & Reports</h2><p class="muted">Page views and anonymous unique visitors are tracked by date. Online Now uses visitor activity within the last five minutes. Cancelled/rejected orders are excluded from order/income totals.</p><div class="period-buttons"><button class="btn ${period==='daily'?'success':''}" data-period="daily">Daily</button><button class="btn ${period==='monthly'?'success':''}" data-period="monthly">Monthly</button><button class="btn ${period==='all'?'success':''}" data-period="all">All Time</button></div><div class="stat-grid stats-summary"><div class="stat"><span>Page Views</span><strong>${latest.page_views.toLocaleString()}</strong></div><div class="stat"><span>Unique Visitors</span><strong>${latest.unique_visitors.toLocaleString()}</strong></div><div class="stat"><span>Registered Users</span><strong>${latest.registered.toLocaleString()}</strong></div><div class="stat"><span>Online Now</span><strong>${online.toLocaleString()}</strong></div><div class="stat"><span>Peak Online</span><strong>${latest.peak_online.toLocaleString()}</strong></div><div class="stat"><span>Orders</span><strong>${latest.orders.toLocaleString()}</strong></div><div class="stat"><span>Income USD</span><strong>${latest.income.toFixed(2)}</strong></div><div class="stat"><span>Messages</span><strong>${latest.messages.toLocaleString()}</strong></div></div>${period!=='all'&&rows.length?'<div class="chart-grid"><div class="chart-card"><canvas id="traffic-chart" height="250"></canvas></div><div class="chart-card"><canvas id="business-chart" height="250"></canvas></div></div>':''}<div class="table-wrap"><table><thead><tr><th>Period</th><th>Page Views</th><th>Unique Visitors</th><th>Registered Users</th><th>Peak Online</th><th>Orders</th><th>Income</th><th>Messages</th></tr></thead><tbody>${rows.map(r=>`<tr><td>${Store.esc(r.period)}</td><td>${r.page_views}</td><td>${r.unique_visitors}</td><td>${r.registered}</td><td>${r.peak_online}</td><td>${r.orders}</td><td>${r.income.toFixed(2)}</td><td>${r.messages}</td></tr>`).join('')}</tbody></table></div>`;
+    document.querySelectorAll('[data-period]').forEach(b=>b.onclick=()=>this.statistics(b.dataset.period));
+    if(period!=='all'&&rows.length){this.drawStatsChart('traffic-chart',rows.slice(-31),[['page_views','Page Views'],['unique_visitors','Unique Visitors'],['registered','Registered']]); this.drawStatsChart('business-chart',rows.slice(-31),[['orders','Orders'],['income','Income'],['messages','Messages']]);}
+  },
+
+  drawStatsChart(id,rows,series) {
+    const c=document.getElementById(id); if(!c)return; const ctx=c.getContext('2d'), rect=c.parentElement.getBoundingClientRect(), w=Math.max(500,rect.width-20), h=280, dpr=window.devicePixelRatio||1;
+    c.width=w*dpr;c.height=h*dpr;c.style.width=w+'px';c.style.height=h+'px';ctx.scale(dpr,dpr);
+    const pad={l:45,r:15,t:20,b:45},cw=w-pad.l-pad.r,ch=h-pad.t-pad.b,max=Math.max(1,...rows.flatMap(r=>series.map(([k])=>Number(r[k])||0))), text=getComputedStyle(document.body).getPropertyValue('--text').trim()||'#222', border=getComputedStyle(document.body).getPropertyValue('--border').trim()||'#bbb';
+    ctx.strokeStyle=border;ctx.fillStyle=text;ctx.font='11px sans-serif';
+    for(let i=0;i<=4;i++){const y=pad.t+ch-(i/4)*ch;ctx.beginPath();ctx.moveTo(pad.l,y);ctx.lineTo(w-pad.r,y);ctx.stroke();ctx.fillText(String(Math.round(max*i/4)),4,y+4);}
+    const x=i=>pad.l+(rows.length===1?cw/2:i*cw/(rows.length-1)), y=v=>pad.t+ch-(Number(v||0)/max)*ch;
+    series.forEach(([key,label],si)=>{ctx.beginPath();rows.forEach((r,i)=>{const px=x(i),py=y(r[key]);i?ctx.lineTo(px,py):ctx.moveTo(px,py)});ctx.lineWidth=2;ctx.stroke();rows.forEach((r,i)=>{ctx.beginPath();ctx.arc(x(i),y(r[key]),2.5,0,Math.PI*2);ctx.fill()});ctx.fillText(label,pad.l+si*110,12)});
+    const step=Math.max(1,Math.ceil(rows.length/8));rows.forEach((r,i)=>{if(i%step===0||i===rows.length-1){ctx.save();ctx.translate(x(i),h-8);ctx.rotate(-.35);ctx.fillText(r.period,0,0);ctx.restore()}});
   },
 
   async messages() {
