@@ -1473,6 +1473,9 @@ window.Admin = {
       form.onsubmit = async event => {
         event.preventDefault();
         const f = event.currentTarget;
+        const submitButton = f.querySelector('button[type="submit"]');
+        if (submitButton?.disabled) return;
+        Store.setBusy(submitButton, true, 'Saving…');
         const fd = new FormData(f);
 
         const payload = {
@@ -1487,8 +1490,12 @@ window.Admin = {
           .update(payload)
           .eq('template_key', f.dataset.key);
 
-        if (result.error) return this.err(result.error);
+        if (result.error) {
+          Store.setBusy(submitButton, false);
+          return this.err(result.error);
+        }
 
+        Store.setBusy(submitButton, false);
         Store.alert('Email template saved.');
       };
 
@@ -1611,6 +1618,9 @@ window.Admin = {
       form.onsubmit = async event => {
         event.preventDefault();
         const f = event.currentTarget;
+        const submitButton = f.querySelector('button[type="submit"]');
+        if (submitButton?.disabled) return;
+        Store.setBusy(submitButton, true, 'Saving…');
         const fd = new FormData(f);
 
         const payload = {
@@ -1774,6 +1784,9 @@ window.Admin = {
     document.getElementById('settings-form').onsubmit = async event => {
       event.preventDefault();
       const form = event.currentTarget;
+      const submitButton = form.querySelector('button[type="submit"]');
+      if (submitButton?.disabled) return;
+      Store.setBusy(submitButton, true, 'Saving…');
       const fd = new FormData(form);
 
       const payload = {};
@@ -1785,7 +1798,10 @@ window.Admin = {
       payload.send_admin_new_order_email = fd.has('send_admin_new_order_email');
 
       const result = await db.from('site_settings').update(payload).eq('id',1);
-      if (result.error) return this.err(result.error);
+      if (result.error) {
+        Store.setBusy(submitButton, false);
+        return this.err(result.error);
+      }
 
       // A settings save can affect global typography, header mode, colors and footer.
       // Reloading the current URL guarantees every component starts from the same saved state.

@@ -1,4 +1,6 @@
 window.Store = {
+  footerCache: { at: 0, pages: [], guides: [] },
+
   state: {
     lang: localStorage.getItem('sf_lang') || 'en',
     theme: localStorage.getItem('sf_theme') || 'light',
@@ -115,6 +117,35 @@ window.Store = {
     if (!v) return fallback;
     if (/^\d+(?:\.\d+)?$/.test(v)) return `${v}px`;
     return v;
+  },
+
+  async withTimeout(promise, ms = 12000, label = 'Request') {
+    let timer;
+    try {
+      return await Promise.race([
+        promise,
+        new Promise((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`${label} timed out.`)), ms);
+        })
+      ]);
+    } finally {
+      clearTimeout(timer);
+    }
+  },
+
+  setBusy(target, busy = true, label = 'Working…') {
+    if (!target) return;
+    if (busy) {
+      if (!target.dataset.originalText) target.dataset.originalText = target.textContent || '';
+      target.disabled = true;
+      target.textContent = label;
+    } else {
+      target.disabled = false;
+      if (target.dataset.originalText) {
+        target.textContent = target.dataset.originalText;
+        delete target.dataset.originalText;
+      }
+    }
   },
 
   view(html) {
@@ -397,6 +428,7 @@ window.Store = {
   },
 
   async refreshShell() {
+    // keep current page stable while refreshing shell data only
     try {
       await Auth.refresh();
     } catch (e) {
@@ -850,6 +882,33 @@ window.Store = {
     const host = document.getElementById('footer-links');
     if (!host) return;
 
+    const now = Date.now();
+    if (now - this.footerCache.at < 120000 && (this.footerCache.pages.length || this.footerCache.guides.length)) {
+      const entries = [
+        ...this.footerCache.pages.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'pages' })),
+        ...this.footerCache.guides.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'guide_pages' }))
+      ];
+
+      const hrefFor = row => {
+        const key = row.page_key || row.slug || '';
+        if (row._source === 'pages') {
+          if (key === 'terms') return './terms.html';
+          if (key === 'privacy') return './privacy.html';
+          if (key === 'delivery') return './delivery.html';
+        }
+        if (row._source === 'guide_pages') {
+          const m = /^guide_(\\d+)$/.exec(key);
+          if (m) return `./guide-${m[1]}.html`;
+        }
+        return `./content.html?source=${encodeURIComponent(row._source)}&id=${encodeURIComponent(row.id)}`;
+      };
+
+      host.innerHTML = entries.map(row => `
+        <a class="btn footer-page" href="${hrefFor(row)}">${this.esc(localize(row,'title'))}</a>
+      `).join('');
+      return;
+    }
+
     const safeLoad = async table => {
       try {
         const { data, error } = await db.from(table).select('*');
@@ -865,6 +924,8 @@ window.Store = {
       safeLoad('pages'),
       safeLoad('guide_pages')
     ]);
+
+    this.footerCache = { at: Date.now(), pages, guides };
 
     const entries = [
       ...pages.filter(p => p.enabled !== false).map(p => ({ ...p, _source:'pages' })),

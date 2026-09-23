@@ -104,7 +104,10 @@ window.PublicSite = {
   },
 
   async loadSettings() {
-    const { data, error } = await db.from('site_settings').select('*').eq('id',1).single();
+    const { data, error } = await Promise.race([
+      db.from('site_settings').select('*').eq('id',1).single(),
+      new Promise(resolve => setTimeout(() => resolve({data:null,error:new Error('Settings request timed out.')}),12000))
+    ]);
     if (error) throw error;
     this.state.settings = data || {};
     try { localStorage.setItem('sf_cached_settings', JSON.stringify(this.state.settings)); } catch (_) {}

@@ -50,11 +50,16 @@ window.Products = {
     const ids = (products || []).map(p => p.id).filter(Boolean);
     if (!ids.length) return;
 
-    const { data, error } = await db
-      .from('product_images')
+    const result = await Store.withTimeout(
+      db.from('product_images')
       .select('*')
       .in('product_id', ids)
-      .order('sort_order', { ascending: true });
+      .order('sort_order', { ascending: true }),
+      10000,
+      'Product image request'
+    ).catch(error => ({ data:null, error }));
+
+    const { data, error } = result;
 
     if (error) {
       console.error(error);
@@ -185,7 +190,17 @@ window.Products = {
       p_offset: offset
     });
 
-    let { data, error } = await runQuery();
+    let queryResult;
+    try {
+      queryResult = await Store.withTimeout(runQuery(), 12000, 'Catalog request');
+    } catch (e) {
+      if (token !== c.loadingToken) return;
+      host.innerHTML = `<div class="alert err">${Store.esc(e.message || e)} <button class="mini retry-catalog">Retry</button></div>`;
+      host.querySelector('.retry-catalog')?.addEventListener('click', () => this.renderCatalog(requestedPage));
+      return;
+    }
+
+    let { data, error } = queryResult;
 
     if (token !== c.loadingToken) return;
 
@@ -202,7 +217,13 @@ window.Products = {
     if (requestedPage > pages && total > 0) {
       requestedPage = pages;
       offset = (requestedPage - 1) * c.per;
-      ({ data, error } = await runQuery());
+      try {
+        ({ data, error } = await Store.withTimeout(runQuery(), 12000, 'Catalog request'));
+      } catch (e) {
+        host.innerHTML = `<div class="alert err">${Store.esc(e.message || e)} <button class="mini retry-catalog">Retry</button></div>`;
+        host.querySelector('.retry-catalog')?.addEventListener('click', () => this.renderCatalog(requestedPage));
+        return;
+      }
 
       if (token !== c.loadingToken) return;
       if (error) {
