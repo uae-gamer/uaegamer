@@ -150,3 +150,7 @@ button,input,textarea,select,option,.btn,.mini,table{font-size:1rem}
 
 /* Stabilize layout while returning to a background tab. */
 body{overflow-y:scroll}
+
+.catalog-summary{margin:8px 0 12px;color:var(--desc);font-weight:700}
+.catalog-loading{text-align:center;padding:28px}
+.pagination-gap{display:inline-flex;align-items:center;padding:0 4px;color:var(--desc)}
