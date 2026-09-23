@@ -1205,9 +1205,10 @@ window.Admin = {
       const result = await db.from('site_settings').update(payload).eq('id',1);
       if (result.error) return this.err(result.error);
 
-      await Store.loadSettings();
-      Store.applySettings();
-      Store.alert('Site settings saved.');
+      // A settings save can affect global typography, header mode, colors and footer.
+      // Reloading the current URL guarantees every component starts from the same saved state.
+      try { sessionStorage.setItem('sf_flash', 'Site settings saved.'); } catch (_) {}
+      location.reload();
     };
   },
 

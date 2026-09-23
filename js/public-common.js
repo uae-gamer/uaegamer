@@ -2,7 +2,9 @@ window.PublicSite = {
   state: {
     lang: localStorage.getItem('sf_lang') || 'en',
     theme: localStorage.getItem('sf_theme') || 'light',
-    settings: {}
+    settings: {},
+    user: null,
+    profile: null
   },
 
   esc(v) {
@@ -12,6 +14,13 @@ window.PublicSite = {
   },
 
   escAttr(v) { return this.esc(v); },
+
+  cssSize(value, fallback='14px') {
+    const v = String(value ?? '').trim();
+    if (!v) return fallback;
+    if (/^\d+(?:\.\d+)?$/.test(v)) return `${v}px`;
+    return v;
+  },
 
   localized(row, field) {
     if (!row) return '';
@@ -36,7 +45,7 @@ window.PublicSite = {
     document.body.classList.toggle('dark', this.state.theme === 'dark');
 
     root.style.setProperty('--primary', s.theme_color || '#0066cc');
-    root.style.setProperty('--base-font-size', s.font_size || '14px');
+    root.style.setProperty('--base-font-size', this.cssSize(s.font_size, '14px'));
     root.style.setProperty(
       '--body-font',
       this.state.lang === 'ar'
@@ -61,7 +70,7 @@ window.PublicSite = {
         brand.innerHTML = `<a class="public-brand-link" href="./index.html#home"><h1>${this.esc(name)}</h1></a>`;
         const h = brand.querySelector('h1');
         h.style.fontFamily = 'var(--header-font)';
-        h.style.fontSize = s.header_title_font_size || '2.5rem';
+        h.style.fontSize = this.cssSize(s.header_title_font_size, '2.5rem');
 
         if (s.header_type === 'gradient') {
           h.classList.add('gradient-title');
@@ -120,6 +129,69 @@ window.PublicSite = {
     return `./content.html?source=${encodeURIComponent(source)}&id=${encodeURIComponent(row.id)}`;
   },
 
+  async loadAuth() {
+    const { data: { user } } = await db.auth.getUser();
+    this.state.user = user || null;
+    this.state.profile = null;
+
+    if (user) {
+      const { data } = await db.from('profiles').select('*').eq('id', user.id).maybeSingle();
+      this.state.profile = data || null;
+    }
+  },
+
+  cartCount() {
+    try {
+      const cart = JSON.parse(localStorage.getItem('storefront_cart_v1') || '{}');
+      return Object.values(cart).reduce((sum, qty) => sum + Number(qty || 0), 0);
+    } catch (_) {
+      return 0;
+    }
+  },
+
+  renderNav() {
+    const nav = document.getElementById('public-main-nav');
+    if (!nav) return;
+
+    const user = this.state.user;
+    const profile = this.state.profile;
+    const lang = this.state.lang;
+
+    const labels = lang === 'ar'
+      ? {home:'الرئيسية',contact:'اتصل بنا',cart:'السلة',orders:'طلباتي',account:'حسابي',admin:'لوحة الإدارة',logout:'تسجيل الخروج',login:'تسجيل الدخول',register:'تسجيل'}
+      : {home:'Home',contact:'Contact',cart:'Cart',orders:'My Orders',account:'Manage Account',admin:'Admin Control',logout:'Logout',login:'Log In',register:'Register'};
+
+    const links = [
+      ['./index.html#home', labels.home],
+      ['./index.html#contact', labels.contact]
+    ];
+
+    if (user) {
+      links.push(
+        [`./index.html#cart`, `${labels.cart} (${this.cartCount()})`],
+        ['./index.html#orders', labels.orders],
+        ['./index.html#account', `${labels.account} (${this.esc(profile?.username || user.email || '')})`]
+      );
+      if (profile?.role === 'admin') links.push(['./index.html#admin', labels.admin]);
+      links.push(['#logout', labels.logout]);
+    } else {
+      links.push(
+        ['./index.html#login', labels.login],
+        ['./index.html#register', labels.register]
+      );
+    }
+
+    nav.innerHTML = links.map(([href,label]) => `
+      <a class="btn" href="${href}" ${href === '#logout' ? 'data-public-logout="1"' : ''}>${label}</a>
+    `).join('');
+
+    nav.querySelector('[data-public-logout]')?.addEventListener('click', async event => {
+      event.preventDefault();
+      await db.auth.signOut();
+      location.href = './index.html#home';
+    });
+  },
+
   async footer() {
     const host = document.getElementById('public-footer-links');
     if (!host) return;
@@ -149,8 +221,12 @@ window.PublicSite = {
     this.wireControls();
 
     try {
-      await this.loadSettings();
+      await Promise.all([
+        this.loadSettings(),
+        this.loadAuth()
+      ]);
       this.applyAppearance();
+      this.renderNav();
       await this.footer();
     } finally {
       document.documentElement.classList.add('app-ready');

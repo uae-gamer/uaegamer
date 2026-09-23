@@ -24,6 +24,13 @@ window.Store = {
     }[m]));
   },
 
+  cssSize(value, fallback = '14px') {
+    const v = String(value ?? '').trim();
+    if (!v) return fallback;
+    if (/^\d+(?:\.\d+)?$/.test(v)) return `${v}px`;
+    return v;
+  },
+
   view(html) {
     const view = document.getElementById('view');
     if (view) view.innerHTML = html;
@@ -152,7 +159,7 @@ window.Store = {
     const subtitle = document.getElementById('site-subtitle');
     const footerName = document.getElementById('footer-name');
 
-    document.documentElement.style.setProperty('--base-font-size', s.font_size || '14px');
+    document.documentElement.style.setProperty('--base-font-size', this.cssSize(s.font_size, '14px'));
     document.documentElement.style.setProperty(
       '--body-font',
       this.state.lang === 'ar'
@@ -180,7 +187,7 @@ window.Store = {
         brand.innerHTML = `<h1 id="site-title">${this.esc(name)}</h1>`;
         const h = brand.querySelector('h1');
         h.style.fontFamily = 'var(--header-font)';
-        h.style.fontSize = s.header_title_font_size || '2.5rem';
+        h.style.fontSize = this.cssSize(s.header_title_font_size, '2.5rem');
 
         if (s.header_type === 'gradient') {
           h.classList.add('gradient-title');
@@ -262,13 +269,16 @@ window.Store = {
       } catch (e) {
         console.error(e);
       }
-      await this.refreshShell();
       location.hash = 'home';
       return;
     }
 
-    location.hash = route;
-    await this.route();
+    const nextHash = `#${route}`;
+    if (location.hash === nextHash) {
+      await this.route();
+    } else {
+      location.hash = route;
+    }
   },
 
   visitorId() {
@@ -835,7 +845,19 @@ window.Store = {
 
       await this.route();
 
-      db.auth.onAuthStateChange(() => {
+      try {
+        const flash = sessionStorage.getItem('sf_flash');
+        if (flash) {
+          sessionStorage.removeItem('sf_flash');
+          this.alert(flash);
+        }
+      } catch (_) {}
+
+      db.auth.onAuthStateChange((event) => {
+        // Supabase may emit TOKEN_REFRESHED when a background tab becomes active.
+        // That does not change the visible user, so do not rebuild the page for it.
+        if (!['SIGNED_IN','SIGNED_OUT','USER_UPDATED'].includes(event)) return;
+
         setTimeout(async () => {
           await this.refreshShell();
           await this.route();
