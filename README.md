@@ -1,8 +1,7 @@
-# StoreFront Step 12
+# StoreFront Step 13 — Revenue + Statistics + Toasts
 
-Run STEP12-SQL.sql first.
+Run STEP13-SQL.sql first.
 
-Adds automatic order-status notifications, mark-as-read notifications, Contact page/messages,
-admin message deletion, richer My Orders status display, and printable receipts.
+Adds immediate self-clearing toast messages, anonymous analytics, public footer stats, Daily/Monthly/All-Time reports, charts, and a Revenue Report using order expense snapshots.
 
-Keep your working js/config.js values.
+Keep your working js/config.js.
