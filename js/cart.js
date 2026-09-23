@@ -58,6 +58,30 @@ window.Cart = {
     Store.alert('Item added to cart.');
   },
 
+  async ensureProducts() {
+    const ids = Object.keys(this.get());
+    if (!ids.length) return;
+
+    const existing = new Map((Store.state.products || []).map(p => [p.id, p]));
+    const missing = ids.filter(id => !existing.has(id));
+
+    if (missing.length) {
+      const { data, error } = await db
+        .from('products')
+        .select('*')
+        .in('id', missing);
+
+      if (error) {
+        console.error(error);
+        Store.alert('Unable to load one or more cart items: ' + error.message, 'err');
+      } else {
+        for (const p of (data || [])) existing.set(p.id, p);
+      }
+    }
+
+    Store.state.products = [...existing.values()];
+  },
+
   rows() {
     const cart = this.get();
     return Object.entries(cart)
@@ -68,7 +92,7 @@ window.Cart = {
       .filter(([product, qty]) => product && qty > 0);
   },
 
-  render() {
+  async render() {
     if (!Store.state.user) {
       Store.view(`
         <div class="alert err">
@@ -80,6 +104,7 @@ window.Cart = {
       return;
     }
 
+    await this.ensureProducts();
     const rows = this.rows();
 
     if (!rows.length) {
@@ -165,9 +190,10 @@ window.Cart = {
     document.getElementById('continue-checkout').onclick = () => Store.go('checkout');
   },
 
-  renderCheckout() {
+  async renderCheckout() {
     if (!Store.state.user) return Store.go('login');
 
+    await this.ensureProducts();
     const rows = this.rows();
     if (!rows.length) return this.render();
 

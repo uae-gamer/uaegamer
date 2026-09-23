@@ -1,4 +1,15 @@
 window.Products = {
+  catalog: {
+    query: '',
+    category: '',
+    type: '',
+    sort: 'default',
+    per: 8,
+    page: 1,
+    total: 0,
+    loadingToken: 0
+  },
+
   async load() {
     const safe = async (promise, fallback = []) => {
       try {
@@ -14,55 +25,19 @@ window.Products = {
       }
     };
 
-    Store.state.products = await safe(
-      db.from('products')
-        .select('*')
-        .eq('active', true)
-        .order('sort_order', { ascending: true })
-    );
+    // Startup now loads only small catalog metadata.
+    // Product rows themselves are fetched page-by-page in renderCatalog().
+    Store.state.products = [];
 
-    Store.state.categories = await safe(
-      db.from('categories').select('*').order('sort_order', { ascending: true })
-    );
+    const [categories, types, textbar] = await Promise.all([
+      safe(db.from('categories').select('*').order('sort_order', { ascending: true })),
+      safe(db.from('product_types').select('*').order('sort_order', { ascending: true })),
+      safe(db.from('text_bar').select('*').order('sort_order', { ascending: true }))
+    ]);
 
-    Store.state.types = await safe(
-      db.from('product_types').select('*').order('sort_order', { ascending: true })
-    );
-
-    Store.state.textbar = await safe(
-      db.from('text_bar').select('*').order('sort_order', { ascending: true })
-    );
-
-    // Load images in batches instead of one request per product.
-    const ids = Store.state.products.map(p => p.id);
-    const allImages = [];
-
-    for (let i = 0; i < ids.length; i += 100) {
-      const chunk = ids.slice(i, i + 100);
-      if (!chunk.length) continue;
-
-      const rows = await safe(
-        db.from('product_images')
-          .select('*')
-          .in('product_id', chunk)
-          .order('sort_order', { ascending: true })
-      );
-      allImages.push(...rows);
-    }
-
-    const imagesByProduct = new Map();
-    for (const image of allImages) {
-      if (!imagesByProduct.has(image.product_id)) imagesByProduct.set(image.product_id, []);
-      imagesByProduct.get(image.product_id).push(image);
-    }
-
-    for (const product of Store.state.products) {
-      product.product_images = imagesByProduct.get(product.id) || [];
-      // Included Content is intentionally NOT loaded during startup.
-      // It is fetched 25 rows at a time only when requested.
-    }
-
-    Store.state.textbar = Store.state.textbar.filter(x => x.enabled === undefined || x.enabled === true);
+    Store.state.categories = categories;
+    Store.state.types = types;
+    Store.state.textbar = textbar.filter(x => x.enabled === undefined || x.enabled === true);
   },
 
   price(product) {
@@ -71,8 +46,36 @@ window.Products = {
     return discounted > 0 && discounted < normal ? discounted : normal;
   },
 
+  async loadImagesForProducts(products) {
+    const ids = (products || []).map(p => p.id).filter(Boolean);
+    if (!ids.length) return;
+
+    const { data, error } = await db
+      .from('product_images')
+      .select('*')
+      .in('product_id', ids)
+      .order('sort_order', { ascending: true });
+
+    if (error) {
+      console.error(error);
+      for (const p of products) p.product_images = [];
+      return;
+    }
+
+    const byProduct = new Map();
+    for (const img of (data || [])) {
+      if (!byProduct.has(img.product_id)) byProduct.set(img.product_id, []);
+      byProduct.get(img.product_id).push(img);
+    }
+
+    for (const p of products) {
+      p.product_images = byProduct.get(p.id) || [];
+    }
+  },
+
   renderHome() {
     const s = Store.state;
+    const c = this.catalog;
     const bars = (s.textbar || []).map(x => localize(x, 'text')).filter(Boolean);
 
     let html = bars.length
@@ -81,34 +84,34 @@ window.Products = {
 
     html += `
       <div class="filters">
-        <input id="q" placeholder="${t('search')}">
+        <input id="q" value="${Store.escAttr(c.query)}" placeholder="${t('search')}">
 
         <select id="cat">
           <option value="">${t('allCategories')}</option>
           ${(s.categories || []).map(x =>
-            `<option value="${Store.escAttr(x.id)}">${Store.esc(localize(x, 'name'))}</option>`
+            `<option value="${Store.escAttr(x.id)}" ${c.category===x.id?'selected':''}>${Store.esc(localize(x, 'name'))}</option>`
           ).join('')}
         </select>
 
         <select id="typ">
           <option value="">${t('allTypes')}</option>
           ${(s.types || []).map(x =>
-            `<option value="${Store.escAttr(x.id)}">${Store.esc(localize(x, 'name'))}</option>`
+            `<option value="${Store.escAttr(x.id)}" ${c.type===x.id?'selected':''}>${Store.esc(localize(x, 'name'))}</option>`
           ).join('')}
         </select>
 
         <select id="sort">
-          <option value="default">${t('defaultOrder')}</option>
-          <option value="az">${t('az')}</option>
-          <option value="za">${t('za')}</option>
-          <option value="low">${t('lowHigh')}</option>
-          <option value="high">${t('highLow')}</option>
+          <option value="default" ${c.sort==='default'?'selected':''}>${t('defaultOrder')}</option>
+          <option value="az" ${c.sort==='az'?'selected':''}>${t('az')}</option>
+          <option value="za" ${c.sort==='za'?'selected':''}>${t('za')}</option>
+          <option value="low" ${c.sort==='low'?'selected':''}>${t('lowHigh')}</option>
+          <option value="high" ${c.sort==='high'?'selected':''}>${t('highLow')}</option>
         </select>
 
         <select id="per">
-          <option value="8">8</option>
-          <option value="16">16</option>
-          <option value="32">32</option>
+          <option value="8" ${c.per===8?'selected':''}>8</option>
+          <option value="16" ${c.per===16?'selected':''}>16</option>
+          <option value="32" ${c.per===32?'selected':''}>32</option>
         </select>
       </div>
 
@@ -117,60 +120,156 @@ window.Products = {
 
     Store.view(html);
 
-    ['q', 'cat', 'typ', 'sort', 'per'].forEach(id => {
-      const el = document.getElementById(id);
-      if (!el) return;
-      el.addEventListener(id === 'q' ? 'input' : 'change', () => this.renderCatalog(1));
+    let searchTimer = null;
+
+    document.getElementById('q')?.addEventListener('input', event => {
+      clearTimeout(searchTimer);
+      c.query = event.currentTarget.value.trim();
+      searchTimer = setTimeout(() => {
+        c.page = 1;
+        this.renderCatalog(1);
+      }, 250);
     });
 
-    this.renderCatalog(1);
+    document.getElementById('cat')?.addEventListener('change', event => {
+      c.category = event.currentTarget.value;
+      c.page = 1;
+      this.renderCatalog(1);
+    });
+
+    document.getElementById('typ')?.addEventListener('change', event => {
+      c.type = event.currentTarget.value;
+      c.page = 1;
+      this.renderCatalog(1);
+    });
+
+    document.getElementById('sort')?.addEventListener('change', event => {
+      c.sort = event.currentTarget.value;
+      c.page = 1;
+      this.renderCatalog(1);
+    });
+
+    document.getElementById('per')?.addEventListener('change', event => {
+      c.per = Number(event.currentTarget.value || 8);
+      c.page = 1;
+      this.renderCatalog(1);
+    });
+
+    this.renderCatalog(c.page || 1);
   },
 
-  renderCatalog(page = 1) {
+  async renderCatalog(page = 1) {
     const host = document.getElementById('catalog');
     if (!host) return;
 
-    const q = (document.getElementById('q')?.value || '').trim().toLowerCase();
-    const cat = document.getElementById('cat')?.value || '';
-    const typ = document.getElementById('typ')?.value || '';
-    const sort = document.getElementById('sort')?.value || 'default';
-    const per = Number(document.getElementById('per')?.value || 8);
+    const c = this.catalog;
+    c.query = (document.getElementById('q')?.value ?? c.query ?? '').trim();
+    c.category = document.getElementById('cat')?.value ?? c.category ?? '';
+    c.type = document.getElementById('typ')?.value ?? c.type ?? '';
+    c.sort = document.getElementById('sort')?.value ?? c.sort ?? 'default';
+    c.per = Number(document.getElementById('per')?.value ?? c.per ?? 8);
 
-    let products = [...(Store.state.products || [])];
+    const token = ++c.loadingToken;
+    host.innerHTML = `<div class="card catalog-loading">Loading products…</div>`;
 
-    products = products.filter(p => {
-      const haystack = [p.title, p.title_ar, p.description, p.description_ar]
-        .filter(Boolean).join(' ').toLowerCase();
+    let requestedPage = Math.max(1, Number(page || 1));
+    let offset = (requestedPage - 1) * c.per;
 
-      return (!q || haystack.includes(q)) &&
-             (!cat || p.category_id === cat) &&
-             (!typ || p.type_id === typ);
+    const runQuery = async () => db.rpc('catalog_products', {
+      p_search: c.query || null,
+      p_category_id: c.category || null,
+      p_type_id: c.type || null,
+      p_sort: c.sort,
+      p_lang: Store.state.lang,
+      p_limit: c.per,
+      p_offset: offset
     });
 
-    if (sort === 'az') products.sort((a,b) => localize(a,'title').localeCompare(localize(b,'title')));
-    if (sort === 'za') products.sort((a,b) => localize(b,'title').localeCompare(localize(a,'title')));
-    if (sort === 'low') products.sort((a,b) => this.price(a)-this.price(b));
-    if (sort === 'high') products.sort((a,b) => this.price(b)-this.price(a));
+    let { data, error } = await runQuery();
 
-    const pages = Math.max(1, Math.ceil(products.length / per));
-    page = Math.min(Math.max(1, page), pages);
-    const visible = products.slice((page-1)*per, page*per);
+    if (token !== c.loadingToken) return;
 
-    let html = visible.length
+    if (error) {
+      console.error(error);
+      host.innerHTML = `<div class="alert err">Unable to load products: ${Store.esc(error.message)}</div>`;
+      return;
+    }
+
+    let total = Number(data?.total || 0);
+    let pages = Math.max(1, Math.ceil(total / c.per));
+
+    // If data changed and the current page disappeared, automatically clamp and refetch.
+    if (requestedPage > pages && total > 0) {
+      requestedPage = pages;
+      offset = (requestedPage - 1) * c.per;
+      ({ data, error } = await runQuery());
+
+      if (token !== c.loadingToken) return;
+      if (error) {
+        host.innerHTML = `<div class="alert err">Unable to load products: ${Store.esc(error.message)}</div>`;
+        return;
+      }
+
+      total = Number(data?.total || 0);
+      pages = Math.max(1, Math.ceil(total / c.per));
+    }
+
+    const visible = Array.isArray(data?.items) ? data.items : [];
+    await this.loadImagesForProducts(visible);
+
+    if (token !== c.loadingToken) return;
+
+    c.page = requestedPage;
+    c.total = total;
+
+    // Store only the currently needed catalog products.
+    // Cart hydration adds off-page cart items on demand without loading the full catalog.
+    Store.state.products = visible;
+
+    let html = `
+      <div class="catalog-summary">
+        ${total.toLocaleString()} ${total === 1 ? 'item' : 'items'}
+      </div>
+    `;
+
+    html += visible.length
       ? `<div class="products">${visible.map(p => this.card(p)).join('')}</div>`
       : `<div class="card">${t('noItems')}</div>`;
 
     if (pages > 1) {
-      html += `<div class="pagination">${
-        Array.from({length: pages}, (_,i) =>
-          `<button class="mini ${i+1===page?'active':''}" data-p="${i+1}">${i+1}</button>`
-        ).join('')
-      }</div>`;
+      html += this.paginationHtml(requestedPage, pages);
     }
 
     host.innerHTML = html;
-    host.querySelectorAll('[data-p]').forEach(b => b.onclick = () => this.renderCatalog(Number(b.dataset.p)));
+
+    host.querySelectorAll('[data-catalog-page]').forEach(button => {
+      button.onclick = () => this.renderCatalog(Number(button.dataset.catalogPage));
+    });
+
     this.bindCards();
+  },
+
+  paginationHtml(page, pages) {
+    const nums = new Set([1, pages, page - 2, page - 1, page, page + 1, page + 2]);
+    const valid = [...nums].filter(n => n >= 1 && n <= pages).sort((a,b) => a-b);
+
+    let controls = '';
+    if (page > 1) {
+      controls += `<button class="mini" data-catalog-page="${page-1}">Previous</button>`;
+    }
+
+    let last = 0;
+    for (const n of valid) {
+      if (last && n - last > 1) controls += `<span class="pagination-gap">…</span>`;
+      controls += `<button class="mini ${n===page?'active':''}" data-catalog-page="${n}">${n}</button>`;
+      last = n;
+    }
+
+    if (page < pages) {
+      controls += `<button class="mini" data-catalog-page="${page+1}">Next</button>`;
+    }
+
+    return `<div class="pagination">${controls}</div>`;
   },
 
   card(p) {
@@ -210,6 +309,7 @@ window.Products = {
           ${discounted > 0 && discounted < price
             ? `<span class="old-price">${price.toFixed(2)} USD</span><br>` : ''}
           ${activePrice.toFixed(2)} USD
+          <div class="muted">${(activePrice * 3.67).toFixed(2)} AED</div>
         </div>
 
         <div>${status}</div>
@@ -268,7 +368,6 @@ window.Products = {
 
     const img = gallery.querySelector('.product-gallery-image');
     const counter = gallery.querySelector('.gallery-counter');
-
     if (img) img.src = images[index].image_url;
     if (counter) counter.textContent = `${index + 1} / ${images.length}`;
   },
@@ -287,20 +386,17 @@ window.Products = {
     Store.modal(`
       <div class="image-viewer" data-product="${Store.escAttr(productId)}" data-index="${index}">
         <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
-
         <div class="image-viewer-stage">
           ${images.length > 1 ? `<button id="viewer-prev" class="gallery-arrow viewer-arrow viewer-prev">‹</button>` : ''}
           <img id="viewer-image" src="${Store.escAttr(images[index].image_url)}" alt="">
           ${images.length > 1 ? `<button id="viewer-next" class="gallery-arrow viewer-arrow viewer-next">›</button>` : ''}
         </div>
-
         <div id="viewer-counter" class="gallery-viewer-counter">${index + 1} / ${images.length}</div>
-
         ${images.length > 1 ? `
           <div class="image-thumbs">
             ${images.map((img,i) => `
               <button class="image-thumb ${i===index?'active':''}" data-i="${i}">
-                <img src="${Store.escAttr(img.image_url)}" alt="">
+                <img loading="lazy" src="${Store.escAttr(img.image_url)}" alt="">
               </button>
             `).join('')}
           </div>` : ''}
@@ -313,10 +409,8 @@ window.Products = {
 
       newIndex = (newIndex + images.length) % images.length;
       viewer.dataset.index = String(newIndex);
-
       document.getElementById('viewer-image').src = images[newIndex].image_url;
       document.getElementById('viewer-counter').textContent = `${newIndex + 1} / ${images.length}`;
-
       document.querySelectorAll('.image-thumb').forEach(x => {
         x.classList.toggle('active', Number(x.dataset.i) === newIndex);
       });
@@ -364,16 +458,13 @@ window.Products = {
 
     const total = Number(count || 0);
     const pages = Math.max(1, Math.ceil(total / per));
-    page = Math.min(Math.max(1, page), pages);
 
     Store.modal(`
       <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
       <h3 style="text-align:center">${t('included')} (${total.toLocaleString()})</h3>
-
       ${total
         ? `<ul class="included-list">${(data || []).map(x => `<li>${Store.esc(x.name || '')}</li>`).join('')}</ul>`
         : `<div class="card" style="text-align:center">No Included Content</div>`}
-
       ${pages > 1 ? `
         <div class="pagination">
           ${page > 1 ? `<button class="mini included-page" data-p="${page-1}">Previous</button>` : ''}
