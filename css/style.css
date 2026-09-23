@@ -68,3 +68,26 @@ html[dir="rtl"]{font-family:'Noto Sans Arabic',sans-serif}*{box-sizing:border-bo
 .csv-actions{display:flex;gap:10px;flex-wrap:wrap}
 .content-page-form textarea{font-family:'Fira Code',monospace;font-size:.9rem}
 @media(max-width:700px){.gradient-settings{grid-template-columns:repeat(2,1fr)}}
+
+:root{
+  --body-font:'Noto Sans',sans-serif;
+  --header-font:'Montserrat',sans-serif;
+  --base-font-size:14px;
+}
+html{font-size:var(--base-font-size)}
+body{font-family:var(--body-font)!important}
+button,input,textarea,select,option,table,.btn,.mini,.card,.panel,.main-nav,.sub-nav,.footer{
+  font-family:var(--body-font)!important
+}
+.brand h1,#site-title{font-family:var(--header-font)!important}
+html[dir="rtl"] body,
+html[dir="rtl"] button,
+html[dir="rtl"] input,
+html[dir="rtl"] textarea,
+html[dir="rtl"] select,
+html[dir="rtl"] option,
+html[dir="rtl"] table,
+html[dir="rtl"] .btn,
+html[dir="rtl"] .mini{
+  font-family:var(--body-font)!important
+}
