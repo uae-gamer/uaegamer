@@ -190,3 +190,16 @@ body{overflow-y:scroll}
 .security-info{border-left:4px solid #2563eb}
 .security-ok{border-left:4px solid var(--success)}
 .security-check pre{white-space:pre-wrap;word-break:break-word;max-height:360px;overflow:auto}
+
+/* Step 22 reliability / layout stability */
+img{max-width:100%;height:auto}
+.products{align-items:stretch}
+.product{min-width:0}
+button:disabled,.btn:disabled{opacity:.6;cursor:not-allowed}
+.catalog-loading,.loading-state{min-height:120px;display:flex;align-items:center;justify-content:center}
+@media(max-width:600px){
+  .main-nav,.sub-nav,.toolbar,.filters{gap:6px}
+  .main-nav .btn,.sub-nav .btn,.toolbar .btn,.toolbar .mini{flex:1 1 auto;text-align:center}
+  table{font-size:.9rem}
+  .table-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch}
+}
