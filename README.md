@@ -1,49 +1,18 @@
-# StoreFront Step 15 — Hybrid public architecture + catalog optimization
+# StoreFront Step 15.1 — Navigation / Stability / Style Polish
 
-## Run SQL
-Run `STEP15-SQL.sql` in Supabase SQL Editor. It only adds indexes and is safe to run repeatedly.
+No new SQL is required if Step 15 SQL was already run.
 
-## Architecture
-The secure/application workflow remains a SPA in `index.html`:
-- Home/catalog
-- Login/Register
-- Cart
-- Checkout
-- Account
-- Orders
-- Notifications
-- Admin
-
-Public content now has independent URLs:
-- `terms.html`
-- `privacy.html`
-- `delivery.html`
-- `guide-1.html` ... `guide-4.html`
-- `content.html` fallback for future managed pages
-- `product.html?id=<product UUID>`
-
-These pages still read their current content/settings from Supabase.
-
-## Product details
-Every Home product now has a View Details link to its standalone product page.
-The product page includes:
-- full product description
-- image gallery
-- category/type
-- price and AED estimate
-- stock status
-- Included Content
-- Add to Cart
-
-The same `storefront_cart_v1` browser cart is shared with the SPA.
-
-## Performance changes
-- Home no longer downloads every Included Content row at startup.
-- Included Content is requested on demand, 25 rows at a time.
-- Product images are loaded in batched queries instead of one request per product.
-- Images use browser lazy-loading.
-- Database indexes were added for common catalog/content queries.
-
-This is the first performance step. A later milestone can move Home product search/filter/pagination itself fully server-side for very large catalogs.
+Fixes:
+- Standalone Terms / Privacy / Delivery / Guide / Product pages now show the same authenticated navigation choices as the main site.
+- Navigation reflects login state, cart count, account username and Admin Control access.
+- Logout works from standalone pages.
+- Saving Site Settings reloads the exact current URL (`#admin/settings`) so all global style/header/footer changes initialize cleanly.
+- A success toast appears after the settings-page reload.
+- Supabase TOKEN_REFRESHED events no longer rebuild the visible page when returning to a browser tab.
+- SPA navigation no longer routes twice for the same click.
+- Font size accepts both `16` and `16px` / `1rem` style values.
+- Body text, controls, tables, buttons and managed content explicitly inherit the configured body font and base font size.
+- Header/site titles explicitly use the configured header font.
+- Vertical scrollbar is reserved to reduce horizontal layout shifting.
 
 Keep your working `js/config.js`.
