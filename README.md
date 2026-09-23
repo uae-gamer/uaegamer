@@ -1,16 +1,10 @@
-# StoreFront Step 22
+# StoreFront Step 23
 
-Final performance/reliability milestone before infrastructure freeze.
+Feature and layout modification batch.
 
-No SQL and no Edge Function redeployment are required.
+1. Run `STEP23-SQL.sql`
+2. Redeploy `admin-backup`
+3. Upload the website files while preserving `js/config.js`
+4. Replace the four old guide HTML files with the four `custom_page_*.html` files.
 
-Upload the Step 22 website files while preserving `js/config.js`.
-
-See `STEP22-RELIABILITY.md`.
-
-Main changes:
-- request timeouts + retry
-- duplicate-submit/save protection
-- footer data caching
-- slow-network fallbacks
-- mobile/layout stability improvements
+See `STEP23-DEPLOY.md`.
