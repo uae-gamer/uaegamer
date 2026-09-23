@@ -1,15 +1,9 @@
-# StoreFront Step 24.1
+# StoreFront Step 25
 
-Small footer-layout correction based on Step 24.
+Footer alignment, product-card layout, social-button colors, all-inclusive pricing and AED-display refinement.
 
-No SQL changes.
-No Edge Function redeployment.
-No Supabase configuration changes.
+1. Run `STEP25-SQL.sql`
+2. Upload website files while preserving `js/config.js`
+3. No Edge Function redeployment required
 
-Upload the website files while preserving `js/config.js`.
-
-Change:
-- Footer page buttons now use the same flexible navigation layout as the header.
-- Enabled footer buttons automatically share the full available width.
-- If one or more custom pages are disabled, the remaining buttons expand automatically.
-- Footer button spacing, border, background and container spacing now mirror the header navigation more closely.
+See `STEP25-DEPLOY.md`.
