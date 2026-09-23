@@ -6,6 +6,7 @@ window.Admin = {
     ['textbar','Text Bar'],
     ['users','Registered Users'],
     ['audit','Audit Log'],
+    ['backup','Backup & Health'],
     ['email_templates','Email Templates'],
     ['email_log','Email Log'],
     ['orders','Orders'],
@@ -1179,6 +1180,151 @@ window.Admin = {
         </div>
       ` : '<div class="card">No sensitive admin actions have been recorded yet.</div>'}
     `;
+  },
+
+  async callAdminBackup(payload) {
+    const { data, error } = await db.functions.invoke('admin-backup', { body: payload });
+
+    if (error) {
+      let message = error.message || 'Backup/health function failed.';
+      try {
+        const context = error.context;
+        if (context?.json) {
+          const body = await context.json();
+          if (body?.error) message = body.error;
+        }
+      } catch (_) {}
+      throw new Error(message);
+    }
+
+    if (data?.error) throw new Error(data.error);
+    return data;
+  },
+
+  downloadJson(filename, payload) {
+    const blob = new Blob(
+      [JSON.stringify(payload, null, 2)],
+      { type: 'application/json;charset=utf-8' }
+    );
+
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  },
+
+  async backup() {
+    document.getElementById('admin-body').innerHTML = `
+      <h2>Backup & System Health</h2>
+
+      <div class="admin-grid backup-grid">
+        <section class="panel">
+          <h3>System Health</h3>
+          <p class="muted">
+            Checks common configuration and operational problems without changing data.
+          </p>
+          <button id="run-health" class="btn primary">Run System Health Check</button>
+          <div id="health-results" style="margin-top:12px"></div>
+        </section>
+
+        <section class="panel">
+          <h3>Configuration Backup</h3>
+          <p class="muted">
+            Products, categories, images metadata, Included Content, expenses, pages,
+            site settings and email templates. Recommended before major website changes.
+          </p>
+          <button id="backup-config" class="btn secondary">Download Configuration Backup</button>
+        </section>
+
+        <section class="panel">
+          <h3>Full Logical Backup</h3>
+          <p class="muted">
+            Configuration plus customers, orders, messages, notifications, logs and analytics.
+            Auth account metadata is included, but passwords and Supabase secrets are never exported.
+          </p>
+          <button id="backup-full" class="btn secondary">Download Full Data Backup</button>
+        </section>
+      </div>
+
+      <div class="card backup-warning">
+        <strong>Recovery safety</strong>
+        <p>
+          These JSON downloads are emergency/logical exports. Automatic browser-side restore is
+          intentionally disabled because restoring the wrong file could overwrite orders or customer
+          relationships. Use the documented Supabase recovery process for restoration.
+        </p>
+      </div>
+    `;
+
+    const healthHost = document.getElementById('health-results');
+
+    document.getElementById('run-health').onclick = async () => {
+      healthHost.innerHTML = '<div class="card">Running checks…</div>';
+
+      try {
+        const result = await this.callAdminBackup({ action:'health' });
+        const h = result.health;
+
+        healthHost.innerHTML = `
+          <div class="health-summary health-${Store.escAttr(h.status)}">
+            <strong>${Store.esc(String(h.status).toUpperCase())}</strong>
+            — ${h.summary.critical} critical, ${h.summary.warnings} warnings
+          </div>
+
+          <div class="health-checks">
+            ${(h.checks || []).map(c => `
+              <div class="health-check health-${Store.escAttr(c.severity)}">
+                <div>
+                  <strong>${Store.esc(c.name)}</strong>
+                  <div class="muted">${Store.esc(c.message || '')}</div>
+                </div>
+                <span>${c.count === null || c.count === undefined ? 'N/A' : Store.esc(c.count)}</span>
+              </div>
+            `).join('')}
+          </div>
+
+          <p class="muted">Checked: ${new Date(h.checked_at).toLocaleString()}</p>
+        `;
+      } catch (e) {
+        healthHost.innerHTML = `<div class="alert err">${Store.esc(e.message || e)}</div>`;
+      }
+    };
+
+    const exportBackup = async scope => {
+      const button = scope === 'full'
+        ? document.getElementById('backup-full')
+        : document.getElementById('backup-config');
+
+      const original = button.textContent;
+      button.disabled = true;
+      button.textContent = 'Preparing backup…';
+
+      try {
+        const result = await this.callAdminBackup({ action:'export', scope });
+        const backup = result.backup;
+        const stamp = String(backup.generated_at || new Date().toISOString())
+          .replace(/[:.]/g,'-');
+
+        this.downloadJson(
+          `storefront-${scope}-backup-${stamp}.json`,
+          backup
+        );
+
+        Store.alert(`${scope === 'full' ? 'Full data' : 'Configuration'} backup downloaded.`);
+      } catch (e) {
+        this.err(e);
+      } finally {
+        button.disabled = false;
+        button.textContent = original;
+      }
+    };
+
+    document.getElementById('backup-config').onclick = () => exportBackup('configuration');
+    document.getElementById('backup-full').onclick = () => exportBackup('full');
   },
 
   async email_templates() {
