@@ -2175,6 +2175,37 @@ window.Admin = {
         </label>
 
 
+        <h3>Payment Configuration</h3>
+        <p class="muted">
+          PayPal automation is being introduced gradually. Manual verification remains the safe default.
+          PayPal Client Secret and webhook verification secrets must stay in Supabase Edge Function Secrets,
+          never in this form or the public website code.
+        </p>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>Payment Mode</label>
+            <select name="payment_mode">
+              <option value="manual" ${(data.payment_mode||'manual')==='manual'?'selected':''}>Manual Verification</option>
+              <option value="automatic_fallback" ${data.payment_mode==='automatic_fallback'?'selected':''}>Automatic + Manual Fallback</option>
+              <option value="automatic" ${data.payment_mode==='automatic'?'selected':''}>Automatic PayPal Only</option>
+            </select>
+          </div>
+
+          <div class="form-group">
+            <label>PayPal Environment</label>
+            <select name="paypal_environment">
+              <option value="sandbox" ${(data.paypal_environment||'sandbox')==='sandbox'?'selected':''}>Sandbox</option>
+              <option value="live" ${data.paypal_environment==='live'?'selected':''}>Live</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="alert">
+          Current Step 28 behavior: payment mode is stored for future use, but customer checkout remains on the
+          existing manual PayPal verification flow regardless of this setting. Do not switch to Live yet.
+        </div>
+
         <h3>Animated Background</h3>
         <p class="muted">
           Optional Vanta.js WebGL background. Vanta and Three.js are loaded only when this feature is enabled.
