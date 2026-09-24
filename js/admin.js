@@ -279,23 +279,151 @@ window.Admin = {
   },
 
   async manageProduct(productId) {
-    const [pRes, iRes, cRes, eRes] = await Promise.all([
+    const [pRes, iRes, eRes] = await Promise.all([
       db.from('products').select('*').eq('id', productId).single(),
       db.from('product_images').select('*').eq('product_id', productId).order('sort_order'),
-      db.from('included_content').select('*').eq('product_id', productId).order('sort_order'),
       db.from('product_expenses').select('*').eq('product_id', productId).order('sort_order')
     ]);
 
     if (pRes.error) return this.err(pRes.error);
     if (iRes.error) return this.err(iRes.error);
-    if (cRes.error) return this.err(cRes.error);
     if (eRes.error) return this.err(eRes.error);
 
     const product = pRes.data;
     const images = iRes.data || [];
-    const content = cRes.data || [];
     const expenses = eRes.data || [];
     const host = document.getElementById('admin-body');
+
+    let includedPage = 1;
+    let includedSearch = '';
+    const includedPerPage = 50;
+
+    const renderIncluded = async () => {
+      const offset = (includedPage - 1) * includedPerPage;
+
+      let query = db
+        .from('included_content')
+        .select('*', { count:'exact' })
+        .eq('product_id', productId)
+        .order('sort_order', { ascending:true })
+        .order('created_at', { ascending:true })
+        .range(offset, offset + includedPerPage - 1);
+
+      if (includedSearch) {
+        query = query.ilike('name', `%${includedSearch}%`);
+      }
+
+      const { data, error, count } = await query;
+      if (error) return this.err(error);
+
+      const rows = data || [];
+      const total = Number(count || 0);
+      const pages = Math.max(1, Math.ceil(total / includedPerPage));
+
+      if (includedPage > pages) {
+        includedPage = pages;
+        return renderIncluded();
+      }
+
+      const listHost = document.getElementById('included-content-list');
+      if (!listHost) return;
+
+      listHost.innerHTML = `
+        <div class="included-admin-toolbar">
+          <input id="included-search" type="search"
+                 placeholder="Search Included Content..."
+                 value="${Store.escAttr(includedSearch)}">
+          <span class="muted">${total.toLocaleString()} entries</span>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Content</th><th>Order</th><th>Action</th></tr></thead>
+            <tbody>
+              ${rows.map(row => `
+                <tr>
+                  <td><input class="content-name" data-id="${row.id}" value="${Store.escAttr(row.name||'')}"></td>
+                  <td><input class="content-order" data-id="${row.id}" type="number" value="${Number(row.sort_order||0)}"></td>
+                  <td>
+                    <button class="btn danger delete-content" data-id="${row.id}">Delete</button>
+                  </td>
+                </tr>
+              `).join('') || '<tr><td colspan="3">No Included Content found.</td></tr>'}
+            </tbody>
+          </table>
+        </div>
+
+        <div class="pagination">
+          <button class="mini included-prev" ${includedPage<=1?'disabled':''}>Previous</button>
+          <span>Page ${includedPage} of ${pages}</span>
+          <button class="mini included-next" ${includedPage>=pages?'disabled':''}>Next</button>
+        </div>
+
+        ${rows.length ? `<button id="save-content-page" class="btn">Save Visible Included Content Changes</button>` : ''}
+      `;
+
+      let timer;
+      document.getElementById('included-search').oninput = event => {
+        clearTimeout(timer);
+        const value = event.target.value.trim();
+        timer = setTimeout(() => {
+          includedSearch = value;
+          includedPage = 1;
+          renderIncluded();
+        }, 250);
+      };
+
+      listHost.querySelector('.included-prev')?.addEventListener('click', () => {
+        if (includedPage > 1) {
+          includedPage--;
+          renderIncluded();
+        }
+      });
+
+      listHost.querySelector('.included-next')?.addEventListener('click', () => {
+        if (includedPage < pages) {
+          includedPage++;
+          renderIncluded();
+        }
+      });
+
+      document.getElementById('save-content-page')?.addEventListener('click', async () => {
+        const fields = Array.from(listHost.querySelectorAll('.content-name'));
+
+        for (const nameField of fields) {
+          const id = nameField.dataset.id;
+          const orderField = listHost.querySelector(`.content-order[data-id="${CSS.escape(id)}"]`);
+
+          const result = await db.from('included_content')
+            .update({
+              name: nameField.value.trim(),
+              name_ar: null,
+              sort_order: Number(orderField?.value || 0)
+            })
+            .eq('id', id);
+
+          if (result.error) return this.err(result.error);
+        }
+
+        Store.alert('Visible Included Content changes saved.');
+        renderIncluded();
+      });
+
+      listHost.querySelectorAll('.delete-content').forEach(button => {
+        button.onclick = async () => {
+          if (!confirm('Delete this Included Content entry?')) return;
+
+          const result = await db.from('included_content')
+            .delete()
+            .eq('id', button.dataset.id);
+
+          if (result.error) return this.err(result.error);
+
+          Store.alert('Included Content deleted.');
+          renderIncluded();
+        };
+      });
+    };
 
     host.innerHTML = `
       <button id="back-products" class="btn secondary">← Back to Listed Items</button>
@@ -334,31 +462,43 @@ window.Admin = {
       </section>
 
       <section class="panel">
-        <h3>Included Content (${content.length})</h3>
-        <p class="muted">Displayed exactly as entered. No Arabic translation is applied to this list.</p>
+        <h3>Included Content</h3>
+        <p class="muted">
+          Displayed exactly as entered. No Arabic translation is applied to this list.
+          Large lists are paginated so thousands of entries remain manageable.
+        </p>
 
         <form id="content-form" class="inline-admin-form">
-          <input name="name" placeholder="Included content name" required>
-          <input name="sort_order" type="number" value="${content.length+1}" placeholder="Order">
-          <button class="btn success">Add</button>
+          <input name="name" placeholder="Included Content name" required>
+          <input name="sort_order" type="number" placeholder="Order (auto if blank)">
+          <button class="btn success">Add Included Content</button>
         </form>
 
-        <div class="table-wrap">
-          <table>
-            <thead><tr><th>Content</th><th>Order</th><th>Action</th></tr></thead>
-            <tbody>
-              ${content.map(row => `
-                <tr>
-                  <td><input class="content-name" data-id="${row.id}" value="${Store.escAttr(row.name||'')}"></td>
-                  <td><input class="content-order" data-id="${row.id}" type="number" value="${Number(row.sort_order||0)}"></td>
-                  <td><button class="btn danger delete-content" data-id="${row.id}">Delete</button></td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
+        <div class="included-import-box">
+          <h4>Bulk Import from CSV</h4>
+          <p class="muted">
+            Recommended for large lists. CSV columns: <code>name,sort_order</code>.
+            Only <code>name</code> is required. Exact duplicate names are skipped.
+          </p>
+
+          <div class="inline-actions">
+            <button id="download-included-template" type="button" class="btn secondary">
+              Download CSV Template
+            </button>
+          </div>
+
+          <div class="form-group">
+            <input id="included-csv-file" type="file" accept=".csv,text/csv">
+          </div>
+
+          <div id="included-csv-preview" class="muted"></div>
+          <button id="import-included-csv" type="button" class="btn primary" disabled>
+            Import Included Content
+          </button>
+          <div id="included-import-progress"></div>
         </div>
 
-        ${content.length ? `<button id="save-content" class="btn">Save Included Content Changes</button>` : ''}
+        <div id="included-content-list"></div>
       </section>
 
       <section class="panel">
@@ -504,54 +644,215 @@ window.Admin = {
     document.getElementById('content-form').onsubmit = async event => {
       event.preventDefault();
       const fd = new FormData(event.currentTarget);
+      const name = String(fd.get('name')||'').trim();
+
+      if (!name) return;
+
+      const existing = await db.from('included_content')
+        .select('id')
+        .eq('product_id', productId)
+        .ilike('name', name)
+        .limit(1);
+
+      if (existing.error) return this.err(existing.error);
+      if (existing.data?.length) {
+        return this.err(new Error('This Included Content name already exists for this product.'));
+      }
+
+      let sortOrder = Number(fd.get('sort_order'));
+      if (!Number.isFinite(sortOrder) || sortOrder <= 0) {
+        const maxRes = await db.from('included_content')
+          .select('sort_order')
+          .eq('product_id', productId)
+          .order('sort_order', { ascending:false })
+          .limit(1);
+
+        if (maxRes.error) return this.err(maxRes.error);
+        sortOrder = Number(maxRes.data?.[0]?.sort_order||0) + 1;
+      }
 
       const result = await db.from('included_content').insert({
         product_id: productId,
-        name: String(fd.get('name')||'').trim(),
+        name,
         name_ar: null,
-        sort_order: Number(fd.get('sort_order')||0)
+        sort_order: sortOrder
       });
 
       if (result.error) return this.err(result.error);
 
-      Store.alert('Included content added.');
-      await Products.load();
-      await this.manageProduct(productId);
+      event.currentTarget.reset();
+      Store.alert('Included Content added.');
+      includedPage = 1;
+      includedSearch = '';
+      await renderIncluded();
     };
 
-    document.getElementById('save-content')?.addEventListener('click', async () => {
-      const names = Array.from(document.querySelectorAll('.content-name'));
+    const csvInput = document.getElementById('included-csv-file');
+    const preview = document.getElementById('included-csv-preview');
+    const importButton = document.getElementById('import-included-csv');
+    const progress = document.getElementById('included-import-progress');
 
-      for (const nameField of names) {
-        const id = nameField.dataset.id;
-        const orderField = document.querySelector(`.content-order[data-id="${CSS.escape(id)}"]`);
+    document.getElementById('download-included-template').onclick = () => {
+      this.downloadCsv(
+        'included-content-template.csv',
+        ['name','sort_order'],
+        [
+          { name:'Example Content 1', sort_order:1 },
+          { name:'Example Content 2', sort_order:2 }
+        ]
+      );
+    };
 
-        const result = await db.from('included_content').update({
-          name: nameField.value.trim(),
-          name_ar: null,
-          sort_order: Number(orderField?.value||0)
-        }).eq('id', id);
+    csvInput.onchange = async () => {
+      const file = csvInput.files?.[0];
+      importButton.disabled = true;
+      preview.textContent = '';
+      progress.textContent = '';
 
-        if (result.error) return this.err(result.error);
+      if (!file) return;
+
+      try {
+        const rows = this.parseCsv(await file.text())
+          .map(row => ({
+            name: String(row.name || '').trim(),
+            sort_order: String(row.sort_order || '').trim()
+          }))
+          .filter(row => row.name);
+
+        if (!rows.length) {
+          preview.textContent = 'No valid rows found. CSV must contain a name column.';
+          return;
+        }
+
+        preview.innerHTML = `
+          <strong>${rows.length.toLocaleString()} rows detected.</strong><br>
+          Preview: ${rows.slice(0,5).map(row => Store.esc(row.name)).join(' • ')}
+          ${rows.length > 5 ? ' …' : ''}
+        `;
+
+        importButton.disabled = false;
+      } catch (e) {
+        preview.textContent = e.message || String(e);
       }
+    };
 
-      Store.alert('Included content updated.');
-      await Products.load();
-      await this.manageProduct(productId);
-    });
+    importButton.onclick = async () => {
+      const file = csvInput.files?.[0];
+      if (!file) return;
 
-    document.querySelectorAll('.delete-content').forEach(btn => {
-      btn.onclick = async () => {
-        if (!confirm('Delete this included-content entry?')) return;
+      if (!confirm('Import this CSV into the current product? Exact duplicate names will be skipped.')) return;
 
-        const result = await db.from('included_content').delete().eq('id', btn.dataset.id);
-        if (result.error) return this.err(result.error);
+      importButton.disabled = true;
+      csvInput.disabled = true;
 
-        Store.alert('Included content deleted.');
-        await Products.load();
-        await this.manageProduct(productId);
-      };
-    });
+      try {
+        const parsed = this.parseCsv(await file.text())
+          .map(row => ({
+            name: String(row.name || '').trim(),
+            sort_order: String(row.sort_order || '').trim()
+          }))
+          .filter(row => row.name);
+
+        const existingRes = await db.from('included_content')
+          .select('name,sort_order')
+          .eq('product_id', productId);
+
+        if (existingRes.error) throw existingRes.error;
+
+        const existingNames = new Set(
+          (existingRes.data || []).map(row => String(row.name||'').trim().toLowerCase())
+        );
+
+        const seen = new Set();
+        let skipped = 0;
+        let maxSort = (existingRes.data || []).reduce(
+          (max,row) => Math.max(max, Number(row.sort_order||0)),
+          0
+        );
+
+        const ready = [];
+
+        for (const row of parsed) {
+          const key = row.name.toLowerCase();
+
+          if (existingNames.has(key) || seen.has(key)) {
+            skipped++;
+            continue;
+          }
+
+          seen.add(key);
+
+          let sortOrder = Number(row.sort_order);
+          if (!Number.isFinite(sortOrder) || sortOrder <= 0) {
+            maxSort += 1;
+            sortOrder = maxSort;
+          }
+
+          ready.push({
+            product_id: productId,
+            name: row.name,
+            name_ar: null,
+            sort_order: sortOrder
+          });
+        }
+
+        if (!ready.length) {
+          progress.innerHTML = `<div class="alert">Nothing to import. ${skipped.toLocaleString()} duplicate row(s) skipped.</div>`;
+          return;
+        }
+
+        const batchSize = 200;
+        let imported = 0;
+        const failed = [];
+
+        progress.innerHTML = `
+          <div class="alert">Importing 0 / ${ready.length.toLocaleString()}...</div>
+          <progress max="${ready.length}" value="0"></progress>
+        `;
+
+        for (let offset=0; offset<ready.length; offset+=batchSize) {
+          const batch = ready.slice(offset, offset + batchSize);
+          const result = await db.from('included_content').insert(batch);
+
+          if (result.error) {
+            failed.push({
+              from: offset + 1,
+              to: offset + batch.length,
+              message: result.error.message
+            });
+          } else {
+            imported += batch.length;
+          }
+
+          const processed = Math.min(offset + batch.length, ready.length);
+          progress.innerHTML = `
+            <div class="alert">
+              Imported ${imported.toLocaleString()} / ${ready.length.toLocaleString()}
+              • Skipped ${skipped.toLocaleString()}
+              ${failed.length ? `• Failed batches ${failed.length}` : ''}
+            </div>
+            <progress max="${ready.length}" value="${processed}"></progress>
+          `;
+        }
+
+        progress.innerHTML = `
+          <div class="alert ${failed.length?'':'ok'}">
+            Import complete. Imported ${imported.toLocaleString()}
+            • Skipped ${skipped.toLocaleString()}
+            ${failed.length ? `• Failed batches ${failed.length}` : ''}
+          </div>
+        `;
+
+        includedPage = 1;
+        includedSearch = '';
+        await renderIncluded();
+      } catch (e) {
+        progress.innerHTML = `<div class="alert err">${Store.esc(e.message || e)}</div>`;
+      } finally {
+        csvInput.disabled = false;
+        importButton.disabled = false;
+      }
+    };
 
     document.getElementById('expense-form').onsubmit = async event => {
       event.preventDefault();
@@ -605,6 +906,8 @@ window.Admin = {
         await this.manageProduct(productId);
       };
     });
+
+    await renderIncluded();
   },
 
   async simpleTable(table, title, nameKey='name', arKey='name_ar') {

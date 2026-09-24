@@ -300,15 +300,20 @@ window.Products = {
     const hasDiscount = discounted > 0 && discounted < price;
     const discountPct = hasDiscount ? Math.round(((price - discounted) / price) * 100) : 0;
 
-    const images = [...(p.product_images || [])].sort((a,b) => Number(a.sort_order||0)-Number(b.sort_order||0));
-    const image = images[0]?.image_url || '';
-    const imageCount = images.length;
+    const images = [...(p.product_images || [])]
+      .sort((a,b) => Number(a.sort_order||0)-Number(b.sort_order||0))
+      .filter(x => x.image_url);
 
-    const status = p.status === 'coming_soon'
-      ? `<span class="product-pill status-pill coming">${t('coming')}</span>`
-      : (p.status === 'out_of_stock' || Number(p.stock_quantity || 0) <= 0)
-        ? `<span class="product-pill status-pill out">${t('out')}</span>`
-        : `<span class="product-pill status-pill in">${t('inStock')}</span>`;
+    const mainImage = images[0]?.image_url || '';
+    const canBuy = p.status === 'in_stock' && Number(p.stock_quantity || 0) > 0;
+
+    const statusClass = p.status === 'coming_soon'
+      ? 'coming'
+      : (!canBuy ? 'out' : 'in');
+
+    const statusText = p.status === 'coming_soon'
+      ? t('coming')
+      : (!canBuy ? t('out') : t('inStock'));
 
     const category = Store.state.lang === 'ar'
       ? String(p.category_name_ar || '')
@@ -318,89 +323,91 @@ window.Products = {
       ? String(p.type_name_ar || '')
       : String(p.type_name || '');
 
-    const canBuy = p.status === 'in_stock' && Number(p.stock_quantity || 0) > 0;
+    const description = localize(p,'description');
 
     return `
-      <article class="product">
-        <div class="product-img product-gallery" data-product="${Store.escAttr(p.id)}" data-index="0">
-          ${image
-            ? `<img loading="lazy" class="product-gallery-image" src="${Store.escAttr(image)}" alt="${Store.escAttr(localize(p,'title'))}">`
-            : `<span class="muted">${t('noImage')}</span>`}
+      <article class="product modern-product-card">
+        <div class="product-media">
+          <div class="product-img product-gallery-main">
+            ${mainImage
+              ? `<img loading="lazy"
+                      class="product-gallery-image"
+                      data-main-image="${Store.escAttr(p.id)}"
+                      src="${Store.escAttr(mainImage)}"
+                      alt="${Store.escAttr(localize(p,'title'))}">`
+              : `<span class="muted">${t('noImage')}</span>`}
 
-          ${imageCount > 1 ? `
-            <button type="button" class="gallery-arrow gallery-prev" data-id="${Store.escAttr(p.id)}" aria-label="${t('previous')}">‹</button>
-            <button type="button" class="gallery-arrow gallery-next" data-id="${Store.escAttr(p.id)}" aria-label="${t('next')}">›</button>
-            <span class="gallery-counter">1 / ${imageCount}</span>
+            <div class="product-badges">
+              <span class="product-pill status-pill ${statusClass}">${statusText}</span>
+              ${hasDiscount ? `<span class="product-pill discount-pill">-${discountPct}%</span>` : ''}
+            </div>
+          </div>
+
+          ${images.length > 1 ? `
+            <div class="product-thumbnails" aria-label="${Store.state.lang==='ar'?'صور المنتج':'Product images'}">
+              ${images.map((img,index) => `
+                <button type="button"
+                        class="product-thumbnail ${index===0?'active':''}"
+                        data-product-id="${Store.escAttr(p.id)}"
+                        data-image-url="${Store.escAttr(img.image_url)}"
+                        aria-label="${Store.state.lang==='ar' ? `الصورة ${index+1}` : `Image ${index+1}`}">
+                  <img loading="lazy" src="${Store.escAttr(img.image_url)}" alt="">
+                </button>
+              `).join('')}
+            </div>
           ` : ''}
         </div>
 
-        <h3>${Store.esc(localize(p,'title'))}</h3>
+        <div class="product-card-body">
+          <h3>${Store.esc(localize(p,'title'))}</h3>
 
-        <div class="description product-description">
-          ${Store.esc(localize(p,'description')).slice(0,180)}
-        </div>
+          ${description
+            ? `<div class="product-description clamp-3">${Store.esc(description)}</div>`
+            : ''}
 
-        <div class="product-meta-row">
-          ${category
-            ? `<span class="product-pill meta-pill">${Store.esc(category)}</span>`
-            : `<span class="product-pill meta-pill placeholder-pill">Category</span>`}
-          ${type
-            ? `<span class="product-pill meta-pill">${Store.esc(type)}</span>`
-            : `<span class="product-pill meta-pill placeholder-pill">Type</span>`}
-        </div>
+          ${(category || type) ? `
+            <div class="product-meta-row">
+              ${category ? `<span class="product-pill meta-pill">${Store.esc(category)}</span>` : ''}
+              ${type ? `<span class="product-pill meta-pill">${Store.esc(type)}</span>` : ''}
+            </div>
+          ` : ''}
 
-        <div class="product-meta-row product-status-row">
-          ${status}
-          ${hasDiscount
-            ? `<span class="product-pill discount-pill">-${discountPct}%</span>`
-            : `<span class="product-pill discount-pill placeholder-pill">0%</span>`}
-        </div>
+          <div class="product-pricing">
+            ${hasDiscount ? `<div class="previous-price-line">${price.toFixed(2)} ${t('usd')}</div>` : ''}
+            <div class="current-price">${activePrice.toFixed(2)} ${t('usd')}</div>
+            <div class="aed-estimate">${t('equalsApprox')}: ${(activePrice * 3.67).toFixed(2)} ${t('aed')}</div>
+          </div>
 
-        <div class="product-price-row">
-          <span class="old-price-area ${hasDiscount?'':'empty'}">
-            ${hasDiscount
-              ? `<span class="old-price">${price.toFixed(2)} ${t('usd')}</span>`
-              : '&nbsp;'}
-          </span>
-          <span class="current-price">${activePrice.toFixed(2)} ${t('usd')}</span>
-        </div>
-
-        <div class="aed-estimate">
-          ${t('equalsApprox')}: ${(activePrice * 3.67).toFixed(2)} ${t('aed')}
-        </div>
-
-        <div class="product-actions">
-          ${canBuy
-            ? `<button class="btn primary add" data-id="${Store.escAttr(p.id)}">${t('addCart')}</button>`
-            : `<button class="btn" disabled>${p.status==='coming_soon'?t('coming'):t('out')}</button>`}
-          <a class="btn secondary product-details-link" href="./product.html?id=${encodeURIComponent(p.id)}">${t('viewDetails')}</a>
+          <div class="product-actions">
+            ${canBuy
+              ? `<button class="btn primary add" data-id="${Store.escAttr(p.id)}">${t('addCart')}</button>`
+              : `<button class="btn" disabled>${p.status==='coming_soon'?t('coming'):t('out')}</button>`}
+            <a class="btn secondary product-details-link"
+               href="./product.html?id=${encodeURIComponent(p.id)}">${t('viewDetails')}</a>
+          </div>
         </div>
       </article>
     `;
   },
 
   bindCards() {
-    document.querySelectorAll('.add').forEach(b => b.onclick = () => Cart.add(b.dataset.id));
-    document.querySelectorAll('.included').forEach(b => b.onclick = () => this.showIncluded(b.dataset.id, 1));
-
-    document.querySelectorAll('.gallery-prev').forEach(b => {
-      b.onclick = event => {
-        event.stopPropagation();
-        this.changeImage(b.dataset.id, -1);
-      };
+    document.querySelectorAll('.add').forEach(button => {
+      button.onclick = () => Cart.add(button.dataset.id);
     });
 
-    document.querySelectorAll('.gallery-next').forEach(b => {
-      b.onclick = event => {
-        event.stopPropagation();
-        this.changeImage(b.dataset.id, 1);
-      };
-    });
+    document.querySelectorAll('.product-thumbnail').forEach(button => {
+      button.onclick = () => {
+        const productId = button.dataset.productId;
+        const imageUrl = button.dataset.imageUrl;
+        const mainImage = document.querySelector(`[data-main-image="${CSS.escape(productId)}"]`);
 
-    document.querySelectorAll('.product-gallery-image').forEach(img => {
-      img.onclick = () => {
-        const gallery = img.closest('.product-gallery');
-        if (gallery) this.openImageViewer(gallery.dataset.product, Number(gallery.dataset.index || 0));
+        if (!mainImage || !imageUrl) return;
+
+        mainImage.src = imageUrl;
+
+        button.closest('.product-thumbnails')
+          ?.querySelectorAll('.product-thumbnail')
+          .forEach(x => x.classList.toggle('active', x === button));
       };
     });
   },
