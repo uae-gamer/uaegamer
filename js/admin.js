@@ -2202,8 +2202,20 @@ window.Admin = {
         </div>
 
         <div class="alert">
-          Current Step 28 behavior: payment mode is stored for future use, but customer checkout remains on the
-          existing manual PayPal verification flow regardless of this setting. Do not switch to Live yet.
+          Step 29 behavior: customer checkout still uses the existing manual PayPal verification flow.
+          The automatic create-order API is Sandbox-only and is not yet connected to customer checkout.
+        </div>
+
+        <div class="paypal-sandbox-test">
+          <h4>PayPal Sandbox Connection Test</h4>
+          <p class="muted">
+            Admin-only. Creates a $1.00 order in PayPal Sandbox to verify the Client ID,
+            Client Secret and Orders API connection. It does not charge real money and does not modify a UAEGamer customer order.
+          </p>
+          <button type="button" id="paypal-sandbox-test" class="btn secondary">
+            Test PayPal Sandbox
+          </button>
+          <div id="paypal-sandbox-test-result" style="margin-top:8px"></div>
         </div>
 
         <h3>Animated Background</h3>
@@ -2312,6 +2324,48 @@ window.Admin = {
         </div>
       </form>
     `;
+
+    document.getElementById('paypal-sandbox-test')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const resultHost = document.getElementById('paypal-sandbox-test-result');
+
+      if (!resultHost) return;
+
+      Store.setBusy(button, true, 'Testing…');
+      resultHost.innerHTML = '<div class="alert">Connecting to PayPal Sandbox…</div>';
+
+      try {
+        const { data: result, error } = await db.functions.invoke('paypal-create-order', {
+          body: { action:'test' }
+        });
+
+        if (error) throw error;
+        if (result?.error) throw new Error(result.error);
+
+        resultHost.innerHTML = `
+          <div class="alert ok">
+            PayPal Sandbox connection successful.<br>
+            Order ID: <strong>${Store.esc(result?.paypal_order_id || '')}</strong><br>
+            Status: ${Store.esc(result?.paypal_status || '')}
+            • Test amount: ${Store.esc(result?.amount || '1.00')} ${Store.esc(result?.currency || 'USD')}
+          </div>
+        `;
+      } catch (error) {
+        let message = error?.message || String(error);
+
+        try {
+          const context = error?.context;
+          if (context?.json) {
+            const body = await context.json();
+            if (body?.error) message = body.error;
+          }
+        } catch (_) {}
+
+        resultHost.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
+      } finally {
+        Store.setBusy(button, false);
+      }
+    });
 
     document.getElementById('settings-form').onsubmit = async event => {
       event.preventDefault();
