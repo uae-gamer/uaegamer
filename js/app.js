@@ -882,13 +882,17 @@ window.Store = {
             <td>${Number(i.unit_price_usd||0).toFixed(2)} ${currency}</td>
             <td>${Number(i.quantity||0)}</td>
             <td>${(Number(i.unit_price_usd||0)*Number(i.quantity||0)).toFixed(2)} ${currency}</td>
-            <td>${this.esc(i.paypal_transaction_id||(ar?'غير متوفر':'N/A'))}</td></tr>`).join('')}</tbody>
+            <td>${this.esc(
+              i.paypal_transaction_id
+                || order.paypal_capture_id
+                || (ar ? 'PayPal تلقائي' : 'Automatic PayPal')
+            )}</td></tr>`).join('')}</tbody>
         </table></div>
         <div class="receipt-totals">
-          <div>${t('deliveryFee')}: ${Number(order.delivery_fee_usd||0).toFixed(2)} ${currency}</div>
-          <div>${t('gatewayFee')}: ${Number(order.payment_gateway_fee_usd||0).toFixed(2)} ${currency}</div>
-          <div>${t('vat')}: ${Number(order.vat_usd||0).toFixed(2)} ${currency}</div>
           <div class="receipt-grand-total">${t('total')}: ${Number(order.total_usd||0).toFixed(2)} ${currency}</div>
+          <div class="muted">${ar
+            ? 'السعر الإجمالي نهائي ويشمل الرسوم المطبقة ضمن السعر.'
+            : 'The total price is final and includes applicable charges within the listed price.'}</div>
         </div>
       </div>
       <div class="receipt-actions">

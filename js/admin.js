@@ -1028,7 +1028,10 @@ window.Admin = {
             </div>
             <div>
               <strong>${Number(o.total_usd||0).toFixed(2)} USD</strong><br>
-              <span class="muted">${o.created_at?new Date(o.created_at).toLocaleString():''}</span>
+              <span class="muted">${o.created_at?new Date(o.created_at).toLocaleString():''}</span><br>
+              <span><strong>Payment:</strong> ${Store.esc(o.payment_status || 'unpaid')}</span>
+              ${o.paypal_order_id ? `<br><small>PayPal Order: <code>${Store.esc(o.paypal_order_id)}</code></small>` : ''}
+              ${o.paypal_capture_id ? `<br><small>Capture: <code>${Store.esc(o.paypal_capture_id)}</code></small>` : ''}
             </div>
           </div>
 
@@ -1065,6 +1068,7 @@ window.Admin = {
             </div>
             <button class="btn success save-order" data-id="${o.id}">Save Order Changes</button>
             <button class="btn secondary admin-receipt" data-id="${o.id}">Open Receipt</button>
+            ${o.paypal_order_id ? `<button class="btn secondary reconcile-paypal-order" data-id="${o.id}">Reconcile PayPal</button>` : ''}
             <button class="btn danger soft-delete-order" data-id="${o.id}">Delete Order from Reports</button>
           `}
         </div>
@@ -1095,6 +1099,38 @@ window.Admin = {
 
         Store.alert('Order changes saved.');
         await this.orders(false);
+      };
+    });
+
+    document.querySelectorAll('.reconcile-paypal-order').forEach(btn => {
+      btn.onclick = async () => {
+        Store.setBusy(btn, true, 'Checking…');
+        try {
+          const { data, error } = await db.functions.invoke('paypal-reconcile', {
+            body: { order_id:btn.dataset.id }
+          });
+
+          if (error) throw error;
+          if (data?.error) throw new Error(data.error);
+
+          const result = data?.results?.[0];
+          Store.alert(
+            result
+              ? `PayPal reconciliation: ${result.status}${result.paypal_status ? ` • ${result.paypal_status}` : ''}`
+              : 'PayPal reconciliation completed.'
+          );
+          await this.orders(false);
+        } catch (error) {
+          let message = error?.message || String(error);
+          try {
+            if (error?.context?.json) {
+              const body = await error.context.json();
+              if (body?.error) message = body.error;
+            }
+          } catch (_) {}
+          this.err(new Error(message));
+          Store.setBusy(btn, false);
+        }
       };
     });
 
@@ -2230,6 +2266,13 @@ window.Admin = {
           </p>
 
           <div id="paypal-sandbox-test-result" style="margin-top:8px"></div>
+        </div>
+
+        <div class="alert">
+          <strong>Step 32 webhook/reconciliation:</strong>
+          PayPal webhook handling is server-side. The Sandbox webhook URL and PAYPAL_WEBHOOK_ID
+          are configured outside the public website. Admin orders with a PayPal Order ID now include
+          a Reconcile PayPal button for manual recovery checks.
         </div>
 
         <h3>Animated Background</h3>
