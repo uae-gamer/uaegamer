@@ -373,3 +373,169 @@ body.vanta-active{background:transparent}
 .social-brand-btn{
   font-weight:600;
 }
+
+/* Step 26 — natural product-card layout and scalable Included Content admin */
+.modern-product-card{
+  display:flex;
+  flex-direction:column;
+  gap:0;
+}
+
+.product-media{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+
+.product-gallery-main{
+  position:relative;
+  aspect-ratio:1/1;
+  width:100%;
+  overflow:hidden;
+  border-radius:10px;
+  background:var(--soft);
+}
+
+.product-gallery-main .product-gallery-image{
+  width:100%;
+  height:100%;
+  display:block;
+  object-fit:cover;
+  cursor:default;
+}
+
+.product-badges{
+  position:absolute;
+  inset:8px 8px auto 8px;
+  display:flex;
+  justify-content:space-between;
+  gap:8px;
+  pointer-events:none;
+}
+
+.product-thumbnails{
+  display:flex;
+  gap:6px;
+  overflow-x:auto;
+  padding:1px 0 3px;
+  scrollbar-width:thin;
+}
+
+.product-thumbnail{
+  width:54px;
+  min-width:54px;
+  height:54px;
+  border:2px solid transparent;
+  border-radius:8px;
+  padding:0;
+  overflow:hidden;
+  background:var(--card);
+  cursor:pointer;
+}
+
+.product-thumbnail img{
+  width:100%;
+  height:100%;
+  object-fit:cover;
+  display:block;
+}
+
+.product-thumbnail.active{
+  border-color:var(--primary);
+}
+
+.product-card-body{
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+  padding-top:10px;
+}
+
+.product-card-body h3{
+  min-height:0;
+  margin:0;
+  font-size:calc(var(--font-size) * 1.08);
+  line-height:1.3;
+}
+
+.product-card-body .product-description{
+  min-height:0;
+  margin:0;
+  color:var(--desc);
+  line-height:1.45;
+}
+
+.clamp-3{
+  display:-webkit-box;
+  -webkit-line-clamp:3;
+  -webkit-box-orient:vertical;
+  overflow:hidden;
+}
+
+.product-card-body .product-meta-row{
+  min-height:0;
+  margin:0;
+}
+
+.product-pricing{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+}
+
+.previous-price-line{
+  color:var(--desc);
+  text-decoration:line-through;
+  font-size:.92em;
+}
+
+.product-pricing .current-price{
+  font-size:calc(var(--font-size) * 1.22);
+  line-height:1.2;
+}
+
+.product-card-body .product-actions{
+  margin-top:2px;
+}
+
+.included-import-box{
+  border:1px solid var(--border);
+  border-radius:var(--radius);
+  background:var(--soft);
+  padding:12px;
+  margin:14px 0;
+}
+
+.included-admin-toolbar{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  justify-content:space-between;
+  flex-wrap:wrap;
+  margin:12px 0 8px;
+}
+
+.included-admin-toolbar input{
+  flex:1 1 280px;
+}
+
+.inline-actions{
+  display:flex;
+  gap:8px;
+  flex-wrap:wrap;
+  margin-bottom:10px;
+}
+
+progress{
+  width:100%;
+  height:14px;
+  margin-top:8px;
+}
+
+@media(max-width:600px){
+  .product-thumbnail{
+    width:48px;
+    min-width:48px;
+    height:48px;
+  }
+}
