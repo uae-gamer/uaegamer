@@ -1,5 +1,3 @@
-# UAEGamer Step 30
+# UAEGamer Step 31
 
-PayPal Sandbox approval + capture test. See `STEP30-DEPLOY.md`.
-
-Manual customer payment verification remains active.
+Controlled automatic PayPal Sandbox checkout for real UAEGamer orders. See `STEP31-DEPLOY.md`.
