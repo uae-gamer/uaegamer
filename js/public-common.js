@@ -20,6 +20,16 @@ window.PublicSite = {
   },
 
 
+  contrastText(hex) {
+    const value = String(hex || '').trim();
+    if (!/^#[0-9a-f]{6}$/i.test(value)) return '#ffffff';
+    const r = parseInt(value.slice(1,3),16);
+    const g = parseInt(value.slice(3,5),16);
+    const b = parseInt(value.slice(5,7),16);
+    const luminance = (0.299*r + 0.587*g + 0.114*b) / 255;
+    return luminance > 0.62 ? '#000000' : '#ffffff';
+  },
+
   safeUrl(value, { image = false } = {}) {
     const raw = String(value ?? '').trim();
     if (!raw) return '';
@@ -284,6 +294,56 @@ window.PublicSite = {
     });
   },
 
+  renderSocialLinks() {
+    const host = document.getElementById('public-social-links');
+    if (!host) return;
+
+    const s = this.state.settings || {};
+    if (!s.show_social_icons) {
+      host.innerHTML = '';
+      return;
+    }
+
+    const socialName = (enKey, arKey, enFallback, arFallback) =>
+      this.state.lang === 'ar'
+        ? (String(s[arKey] || '').trim() || arFallback)
+        : (String(s[enKey] || '').trim() || enFallback);
+
+    const items = [
+      {
+        name:socialName('instagram_name','instagram_name_ar','Instagram','إنستغرام'),
+        url:this.safeUrl(s.instagram_url || ''),
+        color:s.instagram_color || '#E1306C'
+      },
+      {
+        name:socialName('whatsapp_name','whatsapp_name_ar','WhatsApp','واتساب'),
+        url:this.safeUrl(s.whatsapp_url || ''),
+        color:s.whatsapp_color || '#25D366'
+      },
+      {
+        name:socialName('snapchat_name','snapchat_name_ar','Snapchat','سناب شات'),
+        url:this.safeUrl(s.snapchat_url || ''),
+        color:s.snapchat_color || '#FFFC00'
+      },
+      {
+        name:socialName('tiktok_name','tiktok_name_ar','TikTok','تيك توك'),
+        url:this.safeUrl(s.tiktok_url || ''),
+        color:s.tiktok_color || '#000000'
+      }
+    ].filter(item => item.url);
+
+    host.innerHTML = items.map(item => {
+      const bg = /^#[0-9a-f]{6}$/i.test(String(item.color||'')) ? item.color : '#333333';
+      const fg = this.contrastText(bg);
+
+      return `<a class="btn social-brand-btn"
+        target="_blank"
+        rel="noopener noreferrer"
+        style="background:${this.escAttr(bg)};color:${this.escAttr(fg)};border-color:${this.escAttr(bg)}"
+        href="${this.escAttr(item.url)}">${this.esc(item.name)}</a>`;
+    }).join('');
+  },
+
   async footer() {
     const host = document.getElementById('public-footer-links');
     if (!host) return;
@@ -333,6 +393,7 @@ window.PublicSite = {
       ]);
       this.applyAppearance();
       this.renderNav();
+      this.renderSocialLinks();
       await this.footer();
     } finally {
       document.documentElement.classList.add('app-ready');

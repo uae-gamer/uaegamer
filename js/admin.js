@@ -2098,26 +2098,70 @@ window.Admin = {
           Show social media links
         </label>
 
-        <div class="bilingual">
-          <div class="form-group"><label>Instagram URL</label>
-            <input type="url" name="instagram_url" value="${Store.escAttr(data.instagram_url||'')}"></div>
-          <div class="form-group"><label>Instagram Button Color</label>
-            <input type="color" name="instagram_color" value="${Store.escAttr(data.instagram_color||'#E1306C')}"></div>
+        <div class="social-settings-grid">
+          <div class="social-setting-card">
+            <h4>Instagram</h4>
+            <div class="bilingual">
+              <div class="form-group"><label>Button Name - English</label>
+                <input name="instagram_name" value="${Store.escAttr(data.instagram_name||'Instagram')}"></div>
+              <div class="form-group"><label>Button Name - Arabic</label>
+                <input name="instagram_name_ar" dir="rtl" value="${Store.escAttr(data.instagram_name_ar||'إنستغرام')}"></div>
+            </div>
+            <div class="bilingual">
+              <div class="form-group"><label>URL</label>
+                <input type="url" name="instagram_url" value="${Store.escAttr(data.instagram_url||'')}"></div>
+              <div class="form-group"><label>Button Color</label>
+                <input type="color" name="instagram_color" value="${Store.escAttr(data.instagram_color||'#E1306C')}"></div>
+            </div>
+          </div>
 
-          <div class="form-group"><label>WhatsApp URL</label>
-            <input type="url" name="whatsapp_url" value="${Store.escAttr(data.whatsapp_url||'')}"></div>
-          <div class="form-group"><label>WhatsApp Button Color</label>
-            <input type="color" name="whatsapp_color" value="${Store.escAttr(data.whatsapp_color||'#25D366')}"></div>
+          <div class="social-setting-card">
+            <h4>WhatsApp</h4>
+            <div class="bilingual">
+              <div class="form-group"><label>Button Name - English</label>
+                <input name="whatsapp_name" value="${Store.escAttr(data.whatsapp_name||'WhatsApp')}"></div>
+              <div class="form-group"><label>Button Name - Arabic</label>
+                <input name="whatsapp_name_ar" dir="rtl" value="${Store.escAttr(data.whatsapp_name_ar||'واتساب')}"></div>
+            </div>
+            <div class="bilingual">
+              <div class="form-group"><label>URL</label>
+                <input type="url" name="whatsapp_url" value="${Store.escAttr(data.whatsapp_url||'')}"></div>
+              <div class="form-group"><label>Button Color</label>
+                <input type="color" name="whatsapp_color" value="${Store.escAttr(data.whatsapp_color||'#25D366')}"></div>
+            </div>
+          </div>
 
-          <div class="form-group"><label>Snapchat URL</label>
-            <input type="url" name="snapchat_url" value="${Store.escAttr(data.snapchat_url||'')}"></div>
-          <div class="form-group"><label>Snapchat Button Color</label>
-            <input type="color" name="snapchat_color" value="${Store.escAttr(data.snapchat_color||'#FFFC00')}"></div>
+          <div class="social-setting-card">
+            <h4>Snapchat</h4>
+            <div class="bilingual">
+              <div class="form-group"><label>Button Name - English</label>
+                <input name="snapchat_name" value="${Store.escAttr(data.snapchat_name||'Snapchat')}"></div>
+              <div class="form-group"><label>Button Name - Arabic</label>
+                <input name="snapchat_name_ar" dir="rtl" value="${Store.escAttr(data.snapchat_name_ar||'سناب شات')}"></div>
+            </div>
+            <div class="bilingual">
+              <div class="form-group"><label>URL</label>
+                <input type="url" name="snapchat_url" value="${Store.escAttr(data.snapchat_url||'')}"></div>
+              <div class="form-group"><label>Button Color</label>
+                <input type="color" name="snapchat_color" value="${Store.escAttr(data.snapchat_color||'#FFFC00')}"></div>
+            </div>
+          </div>
 
-          <div class="form-group"><label>TikTok URL</label>
-            <input type="url" name="tiktok_url" value="${Store.escAttr(data.tiktok_url||'')}"></div>
-          <div class="form-group"><label>TikTok Button Color</label>
-            <input type="color" name="tiktok_color" value="${Store.escAttr(data.tiktok_color||'#000000')}"></div>
+          <div class="social-setting-card">
+            <h4>TikTok</h4>
+            <div class="bilingual">
+              <div class="form-group"><label>Button Name - English</label>
+                <input name="tiktok_name" value="${Store.escAttr(data.tiktok_name||'TikTok')}"></div>
+              <div class="form-group"><label>Button Name - Arabic</label>
+                <input name="tiktok_name_ar" dir="rtl" value="${Store.escAttr(data.tiktok_name_ar||'تيك توك')}"></div>
+            </div>
+            <div class="bilingual">
+              <div class="form-group"><label>URL</label>
+                <input type="url" name="tiktok_url" value="${Store.escAttr(data.tiktok_url||'')}"></div>
+              <div class="form-group"><label>Button Color</label>
+                <input type="color" name="tiktok_color" value="${Store.escAttr(data.tiktok_color||'#000000')}"></div>
+            </div>
+          </div>
         </div>
 
         <label class="check-line">

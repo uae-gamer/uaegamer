@@ -358,10 +358,23 @@ window.Store = {
         style="background:${this.escAttr(bg)};color:${this.escAttr(fg)};border-color:${this.escAttr(bg)}"
         href="${this.escAttr(url)}">${name}</a>`;
     };
-    if (s.show_social_icons && instagramUrl) social.push(socialButton('Instagram', instagramUrl, s.instagram_color));
-    if (s.show_social_icons && whatsappUrl) social.push(socialButton('WhatsApp', whatsappUrl, s.whatsapp_color));
-    if (s.show_social_icons && snapchatUrl) social.push(socialButton('Snapchat', snapchatUrl, s.snapchat_color));
-    if (s.show_social_icons && tiktokUrl) social.push(socialButton('TikTok', tiktokUrl, s.tiktok_color));
+    const socialName = (enKey, arKey, enFallback, arFallback) =>
+      this.state.lang === 'ar'
+        ? (String(s[arKey] || '').trim() || arFallback)
+        : (String(s[enKey] || '').trim() || enFallback);
+
+    if (s.show_social_icons && instagramUrl) social.push(
+      socialButton(socialName('instagram_name','instagram_name_ar','Instagram','إنستغرام'), instagramUrl, s.instagram_color)
+    );
+    if (s.show_social_icons && whatsappUrl) social.push(
+      socialButton(socialName('whatsapp_name','whatsapp_name_ar','WhatsApp','واتساب'), whatsappUrl, s.whatsapp_color)
+    );
+    if (s.show_social_icons && snapchatUrl) social.push(
+      socialButton(socialName('snapchat_name','snapchat_name_ar','Snapchat','سناب شات'), snapchatUrl, s.snapchat_color)
+    );
+    if (s.show_social_icons && tiktokUrl) social.push(
+      socialButton(socialName('tiktok_name','tiktok_name_ar','TikTok','تيك توك'), tiktokUrl, s.tiktok_color)
+    );
 
     const socialHost = document.getElementById('social-links');
     if (socialHost) socialHost.innerHTML = social.join(' ');
