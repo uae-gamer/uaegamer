@@ -1,9 +1,5 @@
-# StoreFront Step 26
+# UAEGamer Step 29
 
-Product-card redesign and scalable Included Content administration.
+PayPal Sandbox create-order foundation. See `STEP29-DEPLOY.md`.
 
-1. Run `STEP26-SQL.sql`
-2. Upload website files while preserving `js/config.js`
-3. No Edge Function redeployment required
-
-See `STEP26-DEPLOY.md`.
+Manual payment verification remains active.
