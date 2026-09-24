@@ -192,6 +192,16 @@ window.Cart = {
     const rows = this.rows();
     if (!rows.length) return this.render();
 
+    const settings = Store.state.settings || {};
+    const paymentMode = String(settings.payment_mode || 'manual');
+    const sandboxAutomatic =
+      String(settings.paypal_environment || 'sandbox') === 'sandbox'
+      && (paymentMode === 'automatic_fallback' || paymentMode === 'automatic');
+
+    if (sandboxAutomatic && !this.forceManualCheckout) {
+      return this.renderAutomaticCheckout(rows, paymentMode === 'automatic_fallback');
+    }
+
     const missingPayPal = rows.filter(([p]) => !String(p.paypal_link || '').trim());
     if (missingPayPal.length) {
       Store.view(`
@@ -327,7 +337,27 @@ window.Cart = {
       </form>
     `);
 
-    document.getElementById('back-cart').onclick = () => Store.go('cart');
+    document.getElementById('back-cart').onclick = () => {
+      this.forceManualCheckout = false;
+      Store.go('cart');
+    };
+
+    if (this.forceManualCheckout) {
+      const form = document.getElementById('checkout-form');
+      form?.insertAdjacentHTML('afterbegin', `
+        <div class="alert">
+          ${ar ? 'أنت تستخدم التحقق اليدوي من PayPal كخيار احتياطي.' : 'You are using manual PayPal verification as the fallback.'}
+          <button type="button" id="return-auto-paypal" class="btn secondary" style="margin-inline-start:8px">
+            ${ar ? 'العودة إلى PayPal التلقائي' : 'Return to Automatic PayPal'}
+          </button>
+        </div>
+      `);
+
+      document.getElementById('return-auto-paypal')?.addEventListener('click', () => {
+        this.forceManualCheckout = false;
+        this.renderCheckout();
+      });
+    }
 
     const clicked = new Set(savedState.clicked || []);
 
@@ -377,6 +407,215 @@ window.Cart = {
 
       await this.submitOrder(rows);
     };
+  },
+
+  renderAutomaticCheckout(rows, allowManualFallback = false) {
+    const ar = Store.state.lang === 'ar';
+    const profile = Store.state.profile || {};
+    const email = Store.state.user?.email || '';
+    const itemTotal = rows.reduce((sum,[p,q]) => sum + Products.price(p)*q, 0);
+
+    Store.view(`
+      <button id="back-cart" class="btn secondary">← ${t('backCart')}</button>
+
+      <h2>${t('deliveryPayment')}</h2>
+
+      <form id="checkout-form" class="panel">
+        <div class="alert ok">
+          <strong>${ar ? 'PayPal التلقائي - وضع الاختبار' : 'Automatic PayPal — Sandbox Test Mode'}</strong>
+          <div>
+            ${ar
+              ? 'سيتم فتح بيئة PayPal التجريبية. لا تستخدم حساب PayPal الحقيقي ولا يتم تحصيل أموال حقيقية.'
+              : 'PayPal Sandbox will open. Use a PayPal Sandbox buyer account only; no real money is charged.'}
+          </div>
+        </div>
+
+        <div class="bilingual">
+          <div class="form-group">
+            <label>${t('firstName')} <span class="req-star">*</span></label>
+            <input name="first_name" value="${Store.escAttr(profile.first_name||'')}" required>
+          </div>
+
+          <div class="form-group">
+            <label>${t('lastName')} <span class="req-star">*</span></label>
+            <input name="last_name" value="${Store.escAttr(profile.last_name||'')}" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label>${t('emailAddress')} <span class="req-star">*</span></label>
+          <input name="email" type="email" value="${Store.escAttr(email)}" required>
+        </div>
+
+        <div class="form-group">
+          <label>${t('contactMobile')} <span class="req-star">*</span></label>
+          <input name="mobile_number" value="${Store.escAttr(profile.mobile_number||'')}" required>
+        </div>
+
+        <div class="form-group">
+          <label>${t('deliveryAddress')} <span class="req-star">*</span></label>
+          <textarea name="delivery_address" rows="3" required>${Store.esc(profile.delivery_address||'')}</textarea>
+        </div>
+
+        <div class="form-group">
+          <label>${t('customerNotes')}</label>
+          <textarea name="customer_notes" rows="3"></textarea>
+        </div>
+
+        <h3>${ar ? 'ملخص الدفع' : 'Payment Summary'}</h3>
+
+        ${rows.map(([p,qty]) => `
+          <div class="paypal-txn-card">
+            <strong>${Store.esc(localize(p,'title'))} × ${qty}</strong>
+            <div class="description">
+              ${(Products.price(p)*qty).toFixed(2)} ${t('usd')}
+              <div class="approx-aed">${t('equalsApprox')}: ${(Products.price(p)*qty*3.67).toFixed(2)} ${t('aed')}</div>
+            </div>
+          </div>
+        `).join('')}
+
+        <div class="card checkout-total-box">
+          <div class="checkout-final-total">
+            <strong>${t('total')}: ${itemTotal.toFixed(2)} ${t('usd')}</strong>
+            <div class="approx-aed">${t('equalsApprox')}: ${(itemTotal*3.67).toFixed(2)} ${t('aed')}</div>
+          </div>
+          <p class="muted inclusive-price-note">${ar
+            ? 'السعر النهائي يشمل ضريبة القيمة المضافة المطبقة ورسوم التوصيل ورسوم PayPal/معالجة الدفع. لن تتم إضافة أي رسوم إضافية.'
+            : 'The final price includes applicable VAT, delivery charges, and PayPal/payment-processing fees. No additional charges will be added.'}</p>
+        </div>
+
+        <div class="form-group checkout-agree">
+          <input type="checkbox" id="delivery-agree" style="width:auto" required>
+          <label for="delivery-agree">
+            ${t('agreeDelivery')} <span class="req-star">*</span>
+          </label>
+        </div>
+
+        <button id="automatic-paypal-btn" type="submit" class="btn primary">
+          ${ar ? 'المتابعة إلى PayPal التجريبي' : 'Continue to PayPal Sandbox'}
+        </button>
+
+        ${allowManualFallback ? `
+          <button id="manual-paypal-fallback" type="button" class="btn secondary" style="margin-top:8px">
+            ${ar ? 'استخدام التحقق اليدوي بدلاً من ذلك' : 'Use Manual Verification Instead'}
+          </button>
+        ` : ''}
+      </form>
+    `);
+
+    document.getElementById('back-cart').onclick = () => {
+      this.forceManualCheckout = false;
+      Store.go('cart');
+    };
+
+    document.getElementById('manual-paypal-fallback')?.addEventListener('click', () => {
+      this.forceManualCheckout = true;
+      this.renderCheckout();
+    });
+
+    document.getElementById('checkout-form').onsubmit = async event => {
+      event.preventDefault();
+
+      if (!document.getElementById('delivery-agree')?.checked) {
+        return Store.alert(
+          ar ? 'يجب الموافقة على سياسة التوصيل أولاً.' : 'You must agree to the Delivery Policy first.',
+          'err'
+        );
+      }
+
+      if (!confirm(
+        ar
+          ? 'سيتم إنشاء طلب غير مدفوع ثم تحويلك إلى PayPal Sandbox لإتمام الدفع التجريبي. هل تريد المتابعة؟'
+          : 'An unpaid UAEGamer order will be created and you will be redirected to PayPal Sandbox. Continue?'
+      )) return;
+
+      await this.submitAutomaticOrder(rows);
+    };
+  },
+
+  async submitAutomaticOrder(rows) {
+    const ar = Store.state.lang === 'ar';
+    const form = document.getElementById('checkout-form');
+    const button = document.getElementById('automatic-paypal-btn');
+    if (!form || !button) return;
+
+    const fd = new FormData(form);
+    const items = rows.map(([product,quantity]) => ({
+      product_id: product.id,
+      quantity
+    }));
+
+    Store.setBusy(button, true, ar ? 'جارٍ إنشاء الطلب…' : 'Creating order…');
+
+    let createdOrder = null;
+
+    try {
+      const { data, error } = await db.rpc('create_order_automatic', {
+        p_items: items,
+        p_first_name: String(fd.get('first_name')||'').trim(),
+        p_last_name: String(fd.get('last_name')||'').trim(),
+        p_email: String(fd.get('email')||'').trim(),
+        p_mobile_number: String(fd.get('mobile_number')||'').trim(),
+        p_delivery_address: String(fd.get('delivery_address')||'').trim(),
+        p_customer_notes: String(fd.get('customer_notes')||'').trim() || null
+      });
+
+      if (error) throw error;
+      createdOrder = data;
+
+      const { data: paypal, error: paypalError } = await db.functions.invoke('paypal-create-order', {
+        body: {
+          action:'create',
+          order_id:data?.order_id
+        }
+      });
+
+      if (paypalError) throw paypalError;
+      if (paypal?.error) throw new Error(paypal.error);
+      if (!paypal?.approve_url) throw new Error('PayPal did not return an approval URL.');
+
+      try {
+        sessionStorage.setItem('paypal_checkout_order_id', String(data?.order_id || ''));
+        sessionStorage.setItem('paypal_checkout_paypal_order_id', String(paypal?.paypal_order_id || ''));
+      } catch (_) {}
+
+      location.href = paypal.approve_url;
+    } catch (error) {
+      console.error(error);
+
+      // If UAEGamer created the order but PayPal setup failed, cancel the
+      // unpaid order when possible. Stock has not been deducted.
+      if (createdOrder?.order_id) {
+        try {
+          const { data: latest } = await db
+            .from('orders')
+            .select('paypal_order_id')
+            .eq('id', createdOrder.order_id)
+            .maybeSingle();
+
+          if (latest?.paypal_order_id) {
+            await db.rpc('cancel_automatic_paypal_order', {
+              p_paypal_order_id: latest.paypal_order_id
+            });
+          }
+        } catch (_) {}
+      }
+
+      let message = error?.message || String(error);
+      try {
+        const context = error?.context;
+        if (context?.json) {
+          const body = await context.json();
+          if (body?.error) message = body.error;
+        }
+      } catch (_) {}
+
+      Store.alert(
+        ar ? 'تعذر بدء دفع PayPal التجريبي: ' + message : 'Unable to start PayPal Sandbox checkout: ' + message,
+        'err'
+      );
+      Store.setBusy(button, false);
+    }
   },
 
   updateCheckoutSubmitState(clicked, rows) {

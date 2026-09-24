@@ -775,10 +775,27 @@ window.Store = {
             <div>${this.statusBadge(o.status)}</div>
           </div>
           <div><strong>${t('total')}:</strong> ${Number(o.total_usd || 0).toFixed(2)} ${t('usd')}</div>
+          <div>
+            <strong>${this.state.lang === 'ar' ? 'حالة الدفع' : 'Payment Status'}:</strong>
+            ${this.esc(
+              o.payment_status === 'paid'
+                ? (this.state.lang === 'ar' ? 'مدفوع' : 'Paid')
+                : o.payment_status === 'pending'
+                  ? (this.state.lang === 'ar' ? 'قيد الدفع' : 'Payment Pending')
+                  : o.payment_status === 'failed'
+                    ? (this.state.lang === 'ar' ? 'فشل/ألغي' : 'Failed/Cancelled')
+                    : (this.state.lang === 'ar' ? 'غير مدفوع' : 'Unpaid')
+            )}
+          </div>
           <ul>
             ${(o.order_items || []).map(i => `
               <li>${this.esc(i.product_title)} × ${Number(i.quantity || 0)}
-              <br><small>${t('transactionId')}: ${this.esc(i.paypal_transaction_id || (this.state.lang === 'ar' ? 'غير متوفر' : 'N/A'))}</small></li>
+              <br><small>${t('transactionId')}: ${this.esc(
+                i.paypal_transaction_id
+                  || (o.paypal_capture_id
+                    ? o.paypal_capture_id
+                    : (this.state.lang === 'ar' ? 'PayPal تلقائي' : 'Automatic PayPal'))
+              )}</small></li>
             `).join('')}
           </ul>
           ${receiptStatuses.has(o.status)
@@ -980,6 +997,129 @@ window.Store = {
     }).join('');
   },
 
+  async handlePayPalCheckoutReturn() {
+    const params = new URLSearchParams(location.search);
+    const state = params.get('paypal_checkout');
+
+    if (!state) return false;
+
+    const paypalOrderId = String(params.get('token') || '').trim();
+    const ar = this.state.lang === 'ar';
+
+    const cleanUrl = hash => {
+      history.replaceState({}, '', `${location.pathname}#${hash}`);
+      location.hash = hash;
+    };
+
+    if (!this.state.user) {
+      try {
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'عاد PayPal إلى UAEGamer ولكن انتهت جلسة تسجيل الدخول. سجّل الدخول ثم راجع طلباتك.'
+            : 'PayPal returned to UAEGamer, but your login session is unavailable. Sign in and review your orders.'
+        );
+      } catch (_) {}
+      cleanUrl('login');
+      return true;
+    }
+
+    if (state === 'cancelled') {
+      if (paypalOrderId) {
+        try {
+          await db.rpc('cancel_automatic_paypal_order', {
+            p_paypal_order_id: paypalOrderId
+          });
+        } catch (e) {
+          console.error('Unable to cancel unpaid PayPal order', e);
+        }
+      }
+
+      try {
+        sessionStorage.removeItem('paypal_checkout_order_id');
+        sessionStorage.removeItem('paypal_checkout_paypal_order_id');
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'تم إلغاء دفع PayPal التجريبي. لم يتم تحصيل أي مبلغ وبقيت السلة كما هي.'
+            : 'PayPal Sandbox payment was cancelled. Nothing was captured and your cart is unchanged.'
+        );
+      } catch (_) {}
+
+      cleanUrl('cart');
+      return true;
+    }
+
+    if (state !== 'approved' || !paypalOrderId) {
+      try {
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'تعذر التحقق من عودة PayPal. لم تتم محاولة تحصيل الدفع.'
+            : 'Unable to validate the PayPal return. No capture was attempted.'
+        );
+      } catch (_) {}
+      cleanUrl('orders');
+      return true;
+    }
+
+    try {
+      const expected = sessionStorage.getItem('paypal_checkout_paypal_order_id') || '';
+      if (expected && expected !== paypalOrderId) {
+        throw new Error('PayPal order mismatch detected. Capture was blocked.');
+      }
+
+      const { data: result, error } = await db.functions.invoke('paypal-capture-order', {
+        body: {
+          action:'capture_order',
+          paypal_order_id:paypalOrderId
+        }
+      });
+
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+
+      Cart.clear();
+      Cart.forceManualCheckout = false;
+      await Products.load();
+
+      sessionStorage.removeItem('paypal_checkout_order_id');
+      sessionStorage.removeItem('paypal_checkout_paypal_order_id');
+      sessionStorage.setItem(
+        'sf_flash',
+        ar
+          ? `تم الدفع بنجاح للطلب رقم ${result?.order_number || ''}. حالة الدفع: مدفوع، وحالة الطلب: قيد المعالجة.`
+          : `Payment completed successfully for Order #${result?.order_number || ''}. Payment: Paid • Order: Processing.`
+      );
+
+      cleanUrl(`receipt/${result?.order_id || ''}`);
+    } catch (error) {
+      let message = error?.message || String(error);
+
+      try {
+        const context = error?.context;
+        if (context?.json) {
+          const body = await context.json();
+          if (body?.error) message = body.error;
+        }
+      } catch (_) {}
+
+      console.error(error);
+      try {
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'تعذر إكمال معالجة دفع PayPal التجريبي: ' + message
+            : 'PayPal Sandbox payment processing could not be completed: ' + message
+        );
+      } catch (_) {}
+
+      cleanUrl('orders');
+    }
+
+    return true;
+  },
+
   async handlePayPalSandboxReturn() {
     const params = new URLSearchParams(location.search);
     const state = params.get('paypal_sandbox');
@@ -1097,6 +1237,7 @@ window.Store = {
         console.error('Authentication initialization failed:', e);
       }
 
+      await this.handlePayPalCheckoutReturn();
       await this.handlePayPalSandboxReturn();
 
       this.renderNav();

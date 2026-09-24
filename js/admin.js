@@ -2202,8 +2202,9 @@ window.Admin = {
         </div>
 
         <div class="alert">
-          Step 29 behavior: customer checkout still uses the existing manual PayPal verification flow.
-          The automatic create-order API is Sandbox-only and is not yet connected to customer checkout.
+          Step 31: Sandbox automatic checkout is available when Payment Mode is
+          Automatic + Manual Fallback or Automatic PayPal Only. Manual Verification remains unchanged.
+          Live PayPal is still intentionally disabled.
         </div>
 
         <div class="paypal-sandbox-test">
