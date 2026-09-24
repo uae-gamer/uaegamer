@@ -980,6 +980,84 @@ window.Store = {
     }).join('');
   },
 
+  async handlePayPalSandboxReturn() {
+    const params = new URLSearchParams(location.search);
+    const state = params.get('paypal_sandbox');
+
+    if (!state) return false;
+
+    const cleanToAdmin = message => {
+      try {
+        sessionStorage.setItem('sf_flash', message);
+        sessionStorage.removeItem('paypal_sandbox_test_order');
+      } catch (_) {}
+
+      history.replaceState({}, '', `${location.pathname}#admin/settings`);
+      location.hash = 'admin/settings';
+    };
+
+    if (state === 'cancelled') {
+      cleanToAdmin('PayPal Sandbox test was cancelled. No payment was captured and no UAEGamer order was changed.');
+      return true;
+    }
+
+    if (state !== 'approved') {
+      cleanToAdmin('Unknown PayPal Sandbox return state. No UAEGamer order was changed.');
+      return true;
+    }
+
+    const paypalOrderId = String(params.get('token') || '').trim();
+
+    if (!paypalOrderId) {
+      cleanToAdmin('PayPal returned without an order token. No capture was attempted.');
+      return true;
+    }
+
+    if (!this.state.user || this.state.profile?.role !== 'admin') {
+      cleanToAdmin('PayPal Sandbox returned successfully, but an active UAEGamer admin session is required to run the capture test.');
+      return true;
+    }
+
+    try {
+      const expected = sessionStorage.getItem('paypal_sandbox_test_order') || '';
+
+      if (expected && expected !== paypalOrderId) {
+        cleanToAdmin('PayPal Sandbox order mismatch detected. Capture was blocked.');
+        return true;
+      }
+    } catch (_) {}
+
+    try {
+      const { data: result, error } = await db.functions.invoke('paypal-capture-order', {
+        body: {
+          action:'test',
+          paypal_order_id: paypalOrderId
+        }
+      });
+
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+
+      cleanToAdmin(
+        `PayPal Sandbox approval + capture successful. Capture ID: ${result?.paypal_capture_id || 'N/A'} • ${result?.amount || '1.00'} ${result?.currency || 'USD'}. No UAEGamer customer order or stock was changed.`
+      );
+    } catch (error) {
+      let message = error?.message || String(error);
+
+      try {
+        const context = error?.context;
+        if (context?.json) {
+          const body = await context.json();
+          if (body?.error) message = body.error;
+        }
+      } catch (_) {}
+
+      cleanToAdmin(`PayPal Sandbox capture test failed: ${message}`);
+    }
+
+    return true;
+  },
+
   async start() {
     document.getElementById('year').textContent = new Date().getFullYear();
     const powered = document.getElementById('powered-by');
@@ -1018,6 +1096,8 @@ window.Store = {
       } catch (e) {
         console.error('Authentication initialization failed:', e);
       }
+
+      await this.handlePayPalSandboxReturn();
 
       this.renderNav();
 

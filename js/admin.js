@@ -2207,14 +2207,27 @@ window.Admin = {
         </div>
 
         <div class="paypal-sandbox-test">
-          <h4>PayPal Sandbox Connection Test</h4>
+          <h4>PayPal Sandbox Tests</h4>
           <p class="muted">
-            Admin-only. Creates a $1.00 order in PayPal Sandbox to verify the Client ID,
-            Client Secret and Orders API connection. It does not charge real money and does not modify a UAEGamer customer order.
+            Admin-only. These tests use PayPal Sandbox and never charge real money.
+            They do not modify UAEGamer customer orders or product stock.
           </p>
-          <button type="button" id="paypal-sandbox-test" class="btn secondary">
-            Test PayPal Sandbox
-          </button>
+
+          <div class="inline-actions">
+            <button type="button" id="paypal-sandbox-test" class="btn secondary">
+              Test API Connection
+            </button>
+            <button type="button" id="paypal-sandbox-full-test" class="btn primary">
+              Test Approval + Capture
+            </button>
+          </div>
+
+          <p class="muted">
+            For the full test, PayPal will open its Sandbox approval page. Sign in using a
+            <strong>PayPal Sandbox Personal/Buyer test account</strong>, not your real PayPal account.
+            After approval, PayPal returns you to UAEGamer and the website securely captures the $1.00 Sandbox order.
+          </p>
+
           <div id="paypal-sandbox-test-result" style="margin-top:8px"></div>
         </div>
 
@@ -2363,6 +2376,45 @@ window.Admin = {
 
         resultHost.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
       } finally {
+        Store.setBusy(button, false);
+      }
+    });
+
+    document.getElementById('paypal-sandbox-full-test')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const resultHost = document.getElementById('paypal-sandbox-test-result');
+
+      if (!resultHost) return;
+
+      Store.setBusy(button, true, 'Creating…');
+      resultHost.innerHTML = '<div class="alert">Creating PayPal Sandbox approval order…</div>';
+
+      try {
+        const { data: result, error } = await db.functions.invoke('paypal-create-order', {
+          body: { action:'test_approval' }
+        });
+
+        if (error) throw error;
+        if (result?.error) throw new Error(result.error);
+        if (!result?.approve_url) throw new Error('PayPal did not return an approval URL.');
+
+        try {
+          sessionStorage.setItem('paypal_sandbox_test_order', String(result.paypal_order_id || ''));
+        } catch (_) {}
+
+        location.href = result.approve_url;
+      } catch (error) {
+        let message = error?.message || String(error);
+
+        try {
+          const context = error?.context;
+          if (context?.json) {
+            const body = await context.json();
+            if (body?.error) message = body.error;
+          }
+        } catch (_) {}
+
+        resultHost.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
         Store.setBusy(button, false);
       }
     });
