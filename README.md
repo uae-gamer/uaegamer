@@ -1,3 +1,3 @@
-# UAEGamer Step 31
+# UAEGamer Step 32
 
-Controlled automatic PayPal Sandbox checkout for real UAEGamer orders. See `STEP31-DEPLOY.md`.
+PayPal Sandbox webhooks, reconciliation, and receipt cleanup. See `STEP32-DEPLOY.md`.
