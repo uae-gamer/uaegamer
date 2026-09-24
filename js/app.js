@@ -267,7 +267,7 @@ window.Store = {
     } catch (e) {
       console.error('Site settings load failed:', e);
       this.state.settings = {};
-      this.alert('StoreFront loaded, but site settings could not be read: ' + (e.message || e), 'err');
+      this.alert('UAEGamer loaded, but site settings could not be read: ' + (e.message || e), 'err');
       return false;
     }
   },
@@ -278,7 +278,7 @@ window.Store = {
     const s = this.state.settings || {};
     document.documentElement.style.setProperty('--primary', s.theme_color || '#0066cc');
 
-    const name = localize(s, 'site_name') || 'StoreFront';
+    const name = localize(s, 'site_name') || 'UAEGamer';
     const description = localize(s, 'site_description') || '';
 
     const brand = document.getElementById('brand');
@@ -827,7 +827,7 @@ window.Store = {
     this.view(`
       <div class="receipt-box">
         <div class="receipt-header">
-          <h2>${this.esc(localize(this.state.settings,'site_name') || (ar ? 'المتجر' : 'StoreFront'))}</h2>
+          <h2>${this.esc(localize(this.state.settings,'site_name') || (ar ? 'المتجر' : 'UAEGamer'))}</h2>
           <strong>${ar ? 'إيصال دفع رسمي' : 'OFFICIAL PAYMENT RECEIPT'}</strong>
         </div>
         <div class="receipt-meta">
@@ -1067,12 +1067,12 @@ window.Store = {
 };
 
 Store.start().catch(error => {
-  console.error('Fatal StoreFront startup error:', error);
+  console.error('Fatal UAEGamer startup error:', error);
   Store.applyBasicUI();
   Store.renderNav();
   Store.view(`
     <div class="alert err">
-      StoreFront encountered a startup error: ${Store.esc(error.message || error)}
+      UAEGamer encountered a startup error: ${Store.esc(error.message || error)}
     </div>
     <div class="card">
       The page controls remain available. Open your browser developer console for the full error.

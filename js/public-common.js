@@ -142,7 +142,7 @@ window.PublicSite = {
         : (s.header_title_font_family || "'Montserrat', sans-serif")
     );
 
-    const name = this.localized(s,'site_name') || 'StoreFront';
+    const name = this.localized(s,'site_name') || 'UAEGamer';
     const description = this.localized(s,'site_description') || '';
     const brand = document.getElementById('public-brand');
 

@@ -51,7 +51,7 @@ window.ProductPage = {
     const description = PublicSite.localized(p,'description');
     const canBuy = p.status === 'in_stock' && Number(p.stock_quantity||0) > 0;
 
-    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || PublicSite.ui('StoreFront','المتجر')}`;
+    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || PublicSite.ui('UAEGamer','المتجر')}`;
     const meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute('content', String(description||title).slice(0,155));
 

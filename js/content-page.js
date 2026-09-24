@@ -27,7 +27,7 @@ window.ContentPage = {
 
     document.getElementById('public-page-title').textContent = title;
     document.getElementById('public-page-content').innerHTML = PublicSite.sanitizeHtml(html);
-    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || PublicSite.ui('StoreFront','المتجر')}`;
+    document.title = `${title} — ${PublicSite.localized(PublicSite.state.settings,'site_name') || PublicSite.ui('UAEGamer','المتجر')}`;
 
     const meta = document.querySelector('meta[name="description"]');
     if (meta) meta.setAttribute('content', title);

@@ -1792,7 +1792,7 @@ window.Admin = {
     `;
 
     const sample = {
-      site_name: Store.state.settings?.site_name || 'StoreFront',
+      site_name: Store.state.settings?.site_name || 'UAEGamer',
       first_name: 'Ahmed',
       last_name: 'Customer',
       customer_name: 'Ahmed Customer',
