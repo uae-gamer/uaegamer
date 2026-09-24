@@ -1,5 +1,5 @@
-# UAEGamer Step 29
+# UAEGamer Step 30
 
-PayPal Sandbox create-order foundation. See `STEP29-DEPLOY.md`.
+PayPal Sandbox approval + capture test. See `STEP30-DEPLOY.md`.
 
-Manual payment verification remains active.
+Manual customer payment verification remains active.
