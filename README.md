@@ -1,3 +1,3 @@
-# UAEGamer Step 32
+# UAEGamer Step 33
 
-PayPal Sandbox webhooks, reconciliation, and receipt cleanup. See `STEP32-DEPLOY.md`.
+Automatic PayPal stock reservations and stale checkout cleanup. See `STEP33-DEPLOY.md`.
