@@ -1,3 +1,3 @@
-# UAEGamer Step 34
+# UAEGamer Step 35
 
-PayPal Sandbox refunds and reversal/refund state handling. See `STEP34-DEPLOY.md`.
+Final PayPal Sandbox production-readiness audit before Live cutover. See `STEP35-DEPLOY.md`.
