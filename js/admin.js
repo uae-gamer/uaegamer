@@ -998,7 +998,7 @@ window.Admin = {
 
   async orders(showDeleted=false) {
     let query = db.from('orders')
-      .select('*,order_items(*)')
+      .select('*,order_items(*),paypal_refunds(*)')
       .order(showDeleted ? 'deleted_at' : 'created_at',{ascending:false});
 
     query = showDeleted ? query.not('deleted_at','is',null) : query.is('deleted_at',null);
@@ -1032,6 +1032,13 @@ window.Admin = {
               <span><strong>Payment:</strong> ${Store.esc(o.payment_status || 'unpaid')}</span>
               ${o.paypal_order_id ? `<br><small>PayPal Order: <code>${Store.esc(o.paypal_order_id)}</code></small>` : ''}
               ${o.paypal_capture_id ? `<br><small>Capture: <code>${Store.esc(o.paypal_capture_id)}</code></small>` : ''}
+              ${(() => {
+                const completedRefunds = (o.paypal_refunds || []).filter(r => r.status === 'completed');
+                const refunded = completedRefunds.reduce((sum,r) => sum + Number(r.amount || 0), 0);
+                if (!refunded) return '';
+                const remaining = Math.max(0, Number(o.total_usd || 0) - refunded);
+                return `<br><small><strong>Refunded:</strong> ${refunded.toFixed(2)} USD • Remaining: ${remaining.toFixed(2)} USD</small>`;
+              })()}
             </div>
           </div>
 
@@ -1048,6 +1055,29 @@ window.Admin = {
               </tbody>
             </table>
           </div>
+
+          ${(o.paypal_refunds || []).length ? `
+            <div class="card" style="margin-top:10px">
+              <strong>PayPal Refund History</strong>
+              <div class="table-wrap">
+                <table>
+                  <thead><tr><th>Date</th><th>Refund ID</th><th>Amount</th><th>Status</th><th>Reason</th><th>Stock Returned</th></tr></thead>
+                  <tbody>
+                    ${(o.paypal_refunds || []).slice().sort((a,b) => String(b.created_at||'').localeCompare(String(a.created_at||''))).map(r => `
+                      <tr>
+                        <td>${r.created_at ? new Date(r.created_at).toLocaleString() : ''}</td>
+                        <td><code>${Store.esc(r.paypal_refund_id || 'Pending')}</code></td>
+                        <td>${Number(r.amount || 0).toFixed(2)} ${Store.esc(r.currency || 'USD')}</td>
+                        <td>${Store.esc(r.status || '')}</td>
+                        <td>${Store.esc(r.reason || '')}</td>
+                        <td>${r.stock_restored_at ? 'Yes' : 'No'}</td>
+                      </tr>
+                    `).join('')}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ` : ''}
 
           ${showDeleted ? `
             <button class="btn success restore-order" data-id="${o.id}">Restore Order</button>
@@ -1069,6 +1099,9 @@ window.Admin = {
             <button class="btn success save-order" data-id="${o.id}">Save Order Changes</button>
             <button class="btn secondary admin-receipt" data-id="${o.id}">Open Receipt</button>
             ${o.paypal_order_id ? `<button class="btn secondary reconcile-paypal-order" data-id="${o.id}">Reconcile PayPal</button>` : ''}
+            ${o.paypal_capture_id && ['paid','partially_refunded'].includes(o.payment_status)
+              ? `<button class="btn danger refund-paypal-order" data-id="${o.id}">Refund PayPal</button>`
+              : ''}
             <button class="btn danger soft-delete-order" data-id="${o.id}">Delete Order from Reports</button>
           `}
         </div>
@@ -1099,6 +1132,89 @@ window.Admin = {
 
         Store.alert('Order changes saved.');
         await this.orders(false);
+      };
+    });
+
+    document.querySelectorAll('.refund-paypal-order').forEach(btn => {
+      btn.onclick = async () => {
+        const order = rows.find(o => String(o.id) === String(btn.dataset.id));
+        if (!order) return;
+
+        const completed = (order.paypal_refunds || []).filter(r => r.status === 'completed');
+        const refunded = completed.reduce((sum,r) => sum + Number(r.amount || 0), 0);
+        const remaining = Math.max(0, Number(order.total_usd || 0) - refunded);
+
+        if (remaining <= 0) {
+          Store.alert('This PayPal payment is already fully refunded.', 'err');
+          return;
+        }
+
+        const entered = prompt(
+          `Refund amount in USD.\nRemaining refundable balance: ${remaining.toFixed(2)} USD\n\nEnter ${remaining.toFixed(2)} for the full remaining balance, or a smaller amount for a partial refund:`,
+          remaining.toFixed(2)
+        );
+        if (entered === null) return;
+
+        const amount = Number(entered);
+        if (!Number.isFinite(amount) || amount <= 0 || amount > remaining) {
+          Store.alert(`Invalid refund amount. Maximum: ${remaining.toFixed(2)} USD`, 'err');
+          return;
+        }
+
+        const fullRemaining = Math.abs(amount - remaining) < 0.005;
+        const reason = prompt('Internal refund reason (recommended):', 'Customer refund') ?? '';
+        const note = prompt('Optional note visible to the payer through PayPal:', '') ?? '';
+
+        let restock = false;
+        if (fullRemaining) {
+          restock = confirm(
+            'This refunds the full remaining PayPal balance.\n\nReturn ALL quantities from this order back to UAEGamer stock?\n\nChoose OK only if the sold items/content should become available for resale.'
+          );
+        }
+
+        const warning = fullRemaining
+          ? `Refund the full remaining ${remaining.toFixed(2)} USD through PayPal Sandbox?`
+          : `Issue a PARTIAL refund of ${amount.toFixed(2)} USD through PayPal Sandbox?`;
+
+        if (!confirm(`${warning}\n\nRefunds cannot normally be cancelled after PayPal processes them.`)) return;
+
+        Store.setBusy(btn, true, 'Refunding…');
+
+        try {
+          const requestId = crypto.randomUUID();
+          const { data, error } = await db.functions.invoke('paypal-refund', {
+            body: {
+              order_id:order.id,
+              request_id:requestId,
+              refund_mode:fullRemaining ? 'remaining' : 'partial',
+              amount:fullRemaining ? null : amount,
+              reason,
+              note_to_payer:note,
+              restock
+            }
+          });
+
+          if (error) throw error;
+          if (data?.error) throw new Error(data.error);
+
+          Store.alert(
+            `PayPal refund ${data?.refund_status || 'processed'}: ${data?.amount || amount.toFixed(2)} ${data?.currency || 'USD'}`
+            + (data?.full_refund ? ' • Payment fully refunded' : ' • Payment partially refunded')
+            + (data?.stock_restored ? ' • Stock restored' : '')
+          );
+
+          await this.orders(false);
+        } catch (error) {
+          let message = error?.message || String(error);
+          try {
+            if (error?.context?.json) {
+              const body = await error.context.json();
+              if (body?.error) message = body.error;
+            }
+          } catch (_) {}
+          this.err(new Error(message));
+          Store.setBusy(btn, false);
+        }
       };
     });
 
@@ -2280,10 +2396,10 @@ window.Admin = {
         </div>
 
         <div class="alert">
-          <strong>Step 32 webhook/reconciliation:</strong>
-          PayPal webhook handling is server-side. The Sandbox webhook URL and PAYPAL_WEBHOOK_ID
-          are configured outside the public website. Admin orders with a PayPal Order ID now include
-          a Reconcile PayPal button for manual recovery checks.
+          <strong>Step 34 PayPal operations:</strong>
+          automatic PayPal orders can now be reconciled or refunded from Admin → Orders.
+          Full/partial refunds are Sandbox-only. Partial refunds never restore stock automatically;
+          a full refund offers an explicit stock-restoration choice.
         </div>
 
         <h3>Animated Background</h3>

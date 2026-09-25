@@ -780,11 +780,17 @@ window.Store = {
             ${this.esc(
               o.payment_status === 'paid'
                 ? (this.state.lang === 'ar' ? 'مدفوع' : 'Paid')
-                : o.payment_status === 'pending'
-                  ? (this.state.lang === 'ar' ? 'قيد الدفع' : 'Payment Pending')
-                  : o.payment_status === 'failed'
-                    ? (this.state.lang === 'ar' ? 'فشل/ألغي' : 'Failed/Cancelled')
-                    : (this.state.lang === 'ar' ? 'غير مدفوع' : 'Unpaid')
+                : o.payment_status === 'partially_refunded'
+                  ? (this.state.lang === 'ar' ? 'مسترد جزئياً' : 'Partially Refunded')
+                  : o.payment_status === 'refunded'
+                    ? (this.state.lang === 'ar' ? 'مسترد بالكامل' : 'Refunded')
+                    : o.payment_status === 'reversed'
+                      ? (this.state.lang === 'ar' ? 'تم عكس الدفعة' : 'Reversed')
+                      : o.payment_status === 'pending'
+                        ? (this.state.lang === 'ar' ? 'قيد الدفع' : 'Payment Pending')
+                        : o.payment_status === 'failed'
+                          ? (this.state.lang === 'ar' ? 'فشل/ألغي' : 'Failed/Cancelled')
+                          : (this.state.lang === 'ar' ? 'غير مدفوع' : 'Unpaid')
             )}
           </div>
           <ul>
