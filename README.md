@@ -1,3 +1,3 @@
-# UAEGamer Step 36
+# UAEGamer Step 36.1
 
-Final PayPal Live cutover with dual Sandbox/Live credentials, Live preflight, environment-safe webhooks, and rollback support. See `STEP36-DEPLOY.md`.
+Live customer UX cleanup after Step 36. See `STEP36-1-UX.md`.
