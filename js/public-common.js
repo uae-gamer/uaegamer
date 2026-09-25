@@ -125,7 +125,16 @@ window.PublicSite = {
     ]);
     if (error) throw error;
     this.state.settings = data || {};
-    try { localStorage.setItem('sf_cached_settings', JSON.stringify(this.state.settings)); } catch (_) {}
+
+    try {
+      const savedLanguage = localStorage.getItem('sf_lang');
+      if (!savedLanguage) {
+        const initialLanguage = this.state.settings.default_language === 'ar' ? 'ar' : 'en';
+        this.state.lang = initialLanguage;
+        localStorage.setItem('sf_lang', initialLanguage);
+      }
+      localStorage.setItem('sf_cached_settings', JSON.stringify(this.state.settings));
+    } catch (_) {}
   },
 
   applyAppearance() {
@@ -151,6 +160,9 @@ window.PublicSite = {
         ? (s.header_title_font_family_ar || "'Noto Sans Arabic', sans-serif")
         : (s.header_title_font_family || "'Montserrat', sans-serif")
     );
+
+    // Load configured Google fonts on standalone/public pages too.
+    FontLoader?.apply?.(s, this.state.lang);
 
     const name = this.localized(s,'site_name') || 'UAEGamer';
     const description = this.localized(s,'site_description') || '';

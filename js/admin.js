@@ -2221,6 +2221,17 @@ window.Admin = {
             </select></div>
         </div>
 
+        <div class="form-group">
+          <label>Default Language for First-Time Visitors</label>
+          <select name="default_language">
+            <option value="en" ${(data.default_language||'en')==='en'?'selected':''}>English</option>
+            <option value="ar" ${data.default_language==='ar'?'selected':''}>Arabic</option>
+          </select>
+          <small class="muted">
+            Applied only when a visitor has never selected a language before. Returning visitors keep their own saved language preference.
+          </small>
+        </div>
+
         <h3>Fonts</h3>
         <div class="bilingual">
           <div class="form-group"><label>Base Font - English</label>
@@ -2384,6 +2395,19 @@ window.Admin = {
           Advanced Credit and Debit Card Payments as eligible for the current merchant, buyer and transaction.
           UAEGamer never receives or stores the full card number or CVV.
         </p>
+
+        <div class="card">
+          <h4>Card Eligibility Diagnostic</h4>
+          <p class="muted">
+            Admin-only. Tests the currently active PayPal environment with a sample USD 10.00 checkout context.
+            It shows PayPal's eligibility result for PayPal, basic card, and Advanced Card Fields.
+            No payment/order is created and no secret value is displayed.
+          </p>
+          <button type="button" id="paypal-card-eligibility-check" class="btn secondary">
+            Check Card Eligibility
+          </button>
+          <div id="paypal-card-eligibility-result" style="margin-top:10px"></div>
+        </div>
 
         <div class="alert">
           Step 36 supports both Sandbox and Live with separate server-side credentials.
@@ -2622,6 +2646,115 @@ window.Admin = {
         } catch (_) {}
 
         resultHost.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
+        Store.setBusy(button, false);
+      }
+    });
+
+    document.getElementById('paypal-card-eligibility-check')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const host = document.getElementById('paypal-card-eligibility-result');
+      if (!host) return;
+
+      Store.setBusy(button, true, 'Checking…');
+      host.innerHTML = '<div class="alert">Checking PayPal card eligibility…</div>';
+
+      let diagnosticScript = null;
+
+      try {
+        const { data:tokenData, error:tokenError } = await db.functions.invoke('paypal-card-client-token', {
+          body:{ diagnostic:true }
+        });
+
+        if (tokenError) throw tokenError;
+        if (tokenData?.error || !tokenData?.accessToken) {
+          throw new Error(tokenData?.error || 'Unable to generate the PayPal client token.');
+        }
+
+        const environment = tokenData.environment === 'live' ? 'live' : 'sandbox';
+        const scriptSrc = environment === 'live'
+          ? 'https://www.paypal.com/web-sdk/v6/core'
+          : 'https://www.sandbox.paypal.com/web-sdk/v6/core';
+
+        if (!window.paypal?.createInstance) {
+          diagnosticScript = document.createElement('script');
+          diagnosticScript.id = 'paypal-admin-web-sdk-v6';
+          diagnosticScript.async = true;
+          diagnosticScript.src = scriptSrc;
+
+          await new Promise((resolve,reject) => {
+            diagnosticScript.onload = resolve;
+            diagnosticScript.onerror = () => reject(new Error('Unable to load PayPal Web SDK v6.'));
+            document.head.appendChild(diagnosticScript);
+          });
+        }
+
+        if (!window.paypal?.createInstance) {
+          throw new Error('PayPal Web SDK v6 did not initialize.');
+        }
+
+        const sdk = await window.paypal.createInstance({
+          clientToken: tokenData.accessToken,
+          components:['card-fields'],
+          pageType:'checkout',
+        });
+
+        const methods = await sdk.findEligibleMethods({
+          currencyCode:'USD',
+          amount:'10.00',
+        });
+
+        const paypalEligible = methods.isEligible('paypal');
+        const cardEligible = methods.isEligible('card');
+        const advancedEligible = methods.isEligible('advanced_cards');
+
+        host.innerHTML = `
+          <div class="alert ${advancedEligible ? 'ok' : ''}">
+            <strong>${advancedEligible ? 'Advanced Card Fields Eligible' : 'Advanced Card Fields Not Eligible'}</strong><br>
+            Environment: ${Store.esc(environment.toUpperCase())} • Sample transaction: 10.00 USD
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Method</th><th>Eligible</th><th>Meaning</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td>PayPal</td>
+                  <td><strong>${paypalEligible ? 'YES' : 'NO'}</strong></td>
+                  <td>Standard PayPal checkout</td>
+                </tr>
+                <tr>
+                  <td>Basic Card</td>
+                  <td><strong>${cardEligible ? 'YES' : 'NO'}</strong></td>
+                  <td>General card eligibility reported by PayPal</td>
+                </tr>
+                <tr>
+                  <td>Advanced Cards</td>
+                  <td><strong>${advancedEligible ? 'YES' : 'NO'}</strong></td>
+                  <td>Required for UAEGamer embedded Card Fields</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          ${advancedEligible ? `
+            <p class="muted">PayPal currently reports this merchant/browser context as eligible for embedded Card Fields.</p>
+          ` : `
+            <p class="muted">
+              UAEGamer is working correctly by hiding Card Fields. PayPal currently reports
+              <code>advanced_cards = false</code> for this context. Check PayPal production onboarding/merchant approval.
+            </p>
+          `}
+        `;
+      } catch (error) {
+        let message = error?.message || String(error);
+        try {
+          if (error?.context?.json) {
+            const body = await error.context.json();
+            if (body?.error) message = body.error;
+          }
+        } catch (_) {}
+
+        console.error('Card eligibility diagnostic failed:', error);
+        host.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
+      } finally {
         Store.setBusy(button, false);
       }
     });

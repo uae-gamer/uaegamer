@@ -260,9 +260,18 @@ window.Store = {
 
       if (error) throw error;
       this.state.settings = data || {};
+
+      // Default language applies only when the visitor has never chosen one.
       try {
+        const savedLanguage = localStorage.getItem('sf_lang');
+        if (!savedLanguage) {
+          const initialLanguage = this.state.settings.default_language === 'ar' ? 'ar' : 'en';
+          this.state.lang = initialLanguage;
+          localStorage.setItem('sf_lang', initialLanguage);
+        }
         localStorage.setItem('sf_cached_settings', JSON.stringify(this.state.settings));
       } catch (_) {}
+
       return true;
     } catch (e) {
       console.error('Site settings load failed:', e);
