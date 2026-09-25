@@ -2235,12 +2235,23 @@ window.Admin = {
               <option value="live" ${data.paypal_environment==='live'?'selected':''}>Live</option>
             </select>
           </div>
+
+          <div class="form-group">
+            <label>Automatic Checkout Stock Reservation (minutes)</label>
+            <input
+              name="paypal_reservation_minutes"
+              type="number"
+              min="5"
+              max="60"
+              step="1"
+              value="${Store.escAttr(data.paypal_reservation_minutes || 20)}">
+            <small class="muted">Recommended: 20 minutes. Applies only to automatic PayPal checkout.</small>
+          </div>
         </div>
 
         <div class="alert">
-          Step 31: Sandbox automatic checkout is available when Payment Mode is
-          Automatic + Manual Fallback or Automatic PayPal Only. Manual Verification remains unchanged.
-          Live PayPal is still intentionally disabled.
+          Step 33: automatic PayPal checkout now reserves stock for a limited period before payment.
+          Manual Verification remains unchanged. Live PayPal is still intentionally disabled.
         </div>
 
         <div class="paypal-sandbox-test">

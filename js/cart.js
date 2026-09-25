@@ -425,8 +425,8 @@ window.Cart = {
           <strong>${ar ? 'PayPal التلقائي - وضع الاختبار' : 'Automatic PayPal — Sandbox Test Mode'}</strong>
           <div>
             ${ar
-              ? 'سيتم فتح بيئة PayPal التجريبية. لا تستخدم حساب PayPal الحقيقي ولا يتم تحصيل أموال حقيقية.'
-              : 'PayPal Sandbox will open. Use a PayPal Sandbox buyer account only; no real money is charged.'}
+              ? `سيتم حجز المخزون لمدة ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة ثم فتح PayPal Sandbox. لا تستخدم حساب PayPal الحقيقي.`
+              : `Stock will be reserved for ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes, then PayPal Sandbox will open. Use a Sandbox buyer account only.`}
           </div>
         </div>
 
