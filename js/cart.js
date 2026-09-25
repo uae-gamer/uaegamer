@@ -73,7 +73,13 @@ window.Cart = {
 
       if (error) {
         console.error(error);
-        Store.alert(Store.state.lang === 'ar' ? 'تعذر تحميل منتج أو أكثر من السلة.' : 'Unable to load one or more cart items: ' + error.message, 'err');
+        console.error('Cart product load failed:', error);
+        Store.alert(
+          Store.state.lang === 'ar'
+            ? 'تعذر تحميل بعض عناصر السلة. يرجى تحديث الصفحة والمحاولة مرة أخرى.'
+            : 'Some cart items could not be loaded. Please refresh the page and try again.',
+          'err'
+        );
       } else {
         for (const p of (data || [])) existing.set(p.id, p);
       }
@@ -415,9 +421,6 @@ window.Cart = {
     const profile = Store.state.profile || {};
     const email = Store.state.user?.email || '';
     const itemTotal = rows.reduce((sum,[p,q]) => sum + Products.price(p)*q, 0);
-    const paypalEnvironment = String(Store.state.settings?.paypal_environment || 'sandbox');
-    const isLive = paypalEnvironment === 'live';
-
     Store.view(`
       <button id="back-cart" class="btn secondary">← ${t('backCart')}</button>
 
@@ -425,17 +428,11 @@ window.Cart = {
 
       <form id="checkout-form" class="panel">
         <div class="alert ok">
-          <strong>${isLive
-            ? (ar ? 'الدفع التلقائي عبر PayPal' : 'Automatic PayPal')
-            : (ar ? 'PayPal التلقائي - وضع الاختبار' : 'Automatic PayPal — Sandbox Test Mode')}</strong>
+          <strong>${ar ? 'الدفع عبر PayPal' : 'Pay with PayPal'}</strong>
           <div>
-            ${isLive
-              ? (ar
-                  ? `سيتم حجز المخزون لمدة ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة ثم تحويلك إلى PayPal لإتمام الدفع الحقيقي.`
-                  : `Stock will be reserved for ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes, then you will be redirected to PayPal to complete the real payment.`)
-              : (ar
-                  ? `سيتم حجز المخزون لمدة ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة ثم فتح PayPal Sandbox. لا تستخدم حساب PayPal الحقيقي.`
-                  : `Stock will be reserved for ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes, then PayPal Sandbox will open. Use a Sandbox buyer account only.`)}
+            ${ar
+              ? `سيتم حجز المنتجات لمدة تصل إلى ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة أثناء إكمال الدفع عبر PayPal.`
+              : `Your items will be reserved for up to ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes while you complete payment with PayPal.`}
           </div>
         </div>
 
@@ -501,9 +498,7 @@ window.Cart = {
         </div>
 
         <button id="automatic-paypal-btn" type="submit" class="btn primary">
-          ${isLive
-            ? (ar ? 'المتابعة إلى PayPal' : 'Continue to PayPal')
-            : (ar ? 'المتابعة إلى PayPal التجريبي' : 'Continue to PayPal Sandbox')}
+          ${ar ? 'المتابعة إلى PayPal' : 'Continue to PayPal'}
         </button>
 
         ${allowManualFallback ? `
@@ -533,16 +528,6 @@ window.Cart = {
           'err'
         );
       }
-
-      if (!confirm(
-        isLive
-          ? (ar
-              ? 'سيتم إنشاء طلب غير مدفوع وحجز المخزون ثم تحويلك إلى PayPal لإتمام دفع حقيقي. هل تريد المتابعة؟'
-              : 'An unpaid UAEGamer order will be created, stock will be reserved, and you will be redirected to PayPal for a real payment. Continue?')
-          : (ar
-              ? 'سيتم إنشاء طلب غير مدفوع ثم تحويلك إلى PayPal Sandbox لإتمام الدفع التجريبي. هل تريد المتابعة؟'
-              : 'An unpaid UAEGamer order will be created and you will be redirected to PayPal Sandbox. Continue?')
-      )) return;
 
       await this.submitAutomaticOrder(rows);
     };
@@ -625,8 +610,11 @@ window.Cart = {
         }
       } catch (_) {}
 
+      console.error('PayPal checkout start failed:', message);
       Store.alert(
-        ar ? 'تعذر بدء دفع PayPal التجريبي: ' + message : 'Unable to start PayPal Sandbox checkout: ' + message,
+        ar
+          ? 'تعذر بدء الدفع عبر PayPal. يرجى المحاولة مرة أخرى، أو التواصل معنا إذا استمرت المشكلة.'
+          : 'Unable to start PayPal checkout. Please try again, or contact us if the problem continues.',
         'err'
       );
       Store.setBusy(button, false);

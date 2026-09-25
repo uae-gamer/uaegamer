@@ -1172,9 +1172,11 @@ window.Admin = {
           );
         }
 
+        const paypalEnvironment = String(Store.state.settings?.paypal_environment || 'sandbox');
+        const paypalLabel = paypalEnvironment === 'live' ? 'PayPal' : 'PayPal Sandbox';
         const warning = fullRemaining
-          ? `Refund the full remaining ${remaining.toFixed(2)} USD through PayPal Sandbox?`
-          : `Issue a PARTIAL refund of ${amount.toFixed(2)} USD through PayPal Sandbox?`;
+          ? `Refund the full remaining ${remaining.toFixed(2)} USD through ${paypalLabel}?`
+          : `Issue a PARTIAL refund of ${amount.toFixed(2)} USD through ${paypalLabel}?`;
 
         if (!confirm(`${warning}\n\nRefunds cannot normally be cancelled after PayPal processes them.`)) return;
 
@@ -2399,10 +2401,9 @@ window.Admin = {
         </div>
 
         <div class="alert">
-          <strong>Step 34 PayPal operations:</strong>
-          automatic PayPal orders can now be reconciled or refunded from Admin → Orders.
-          Full/partial refunds are Sandbox-only. Partial refunds never restore stock automatically;
-          a full refund offers an explicit stock-restoration choice.
+          <strong>PayPal operations:</strong>
+          automatic PayPal orders can be reconciled or refunded from Admin → Orders.
+          Partial refunds never restore stock automatically; a full refund offers an explicit stock-restoration choice.
         </div>
 
         <div class="paypal-readiness-panel card">

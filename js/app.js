@@ -267,7 +267,12 @@ window.Store = {
     } catch (e) {
       console.error('Site settings load failed:', e);
       this.state.settings = {};
-      this.alert('UAEGamer loaded, but site settings could not be read: ' + (e.message || e), 'err');
+      this.alert(
+        this.state.lang === 'ar'
+          ? 'تعذر تحميل إعدادات الموقع بالكامل. يرجى تحديث الصفحة.'
+          : 'Some site settings could not be loaded. Please refresh the page.',
+        'err'
+      );
       return false;
     }
   },
@@ -757,7 +762,10 @@ window.Store = {
       .order('created_at', { ascending: false });
 
     if (error) {
-      this.view(`<div class="alert err">Unable to load orders: ${this.esc(error.message)}</div>`);
+      console.error('Orders load failed:', error);
+      this.view(`<div class="alert err">${this.state.lang === 'ar'
+        ? 'تعذر تحميل الطلبات حالياً. يرجى المحاولة مرة أخرى.'
+        : 'Your orders could not be loaded right now. Please try again.'}</div>`);
       return;
     }
 
@@ -954,7 +962,11 @@ window.Store = {
       });
 
       if (error) {
-        this.alert(ar ? 'تعذر إرسال الرسالة.' : 'Unable to send message: ' + error.message, 'err');
+        console.error('Contact message submission failed:', error);
+        this.alert(
+          ar ? 'تعذر إرسال الرسالة. يرجى المحاولة مرة أخرى.' : 'Unable to send your message. Please try again.',
+          'err'
+        );
         return;
       }
 
@@ -1051,8 +1063,8 @@ window.Store = {
         sessionStorage.setItem(
           'sf_flash',
           ar
-            ? 'تم إلغاء دفع PayPal التجريبي. لم يتم تحصيل أي مبلغ وبقيت السلة كما هي.'
-            : 'PayPal Sandbox payment was cancelled. Nothing was captured and your cart is unchanged.'
+            ? 'تم إلغاء الدفع. لم يتم تحصيل أي مبلغ وبقيت السلة كما هي.'
+            : 'Payment cancelled. No payment was taken and your cart is unchanged.'
         );
       } catch (_) {}
 
@@ -1065,8 +1077,8 @@ window.Store = {
         sessionStorage.setItem(
           'sf_flash',
           ar
-            ? 'تعذر التحقق من عودة PayPal. لم تتم محاولة تحصيل الدفع.'
-            : 'Unable to validate the PayPal return. No capture was attempted.'
+            ? 'تعذر تأكيد حالة الدفع. يرجى مراجعة طلباتك قبل المحاولة مرة أخرى.'
+            : 'We could not confirm the payment status. Please check My Orders before trying again.'
         );
       } catch (_) {}
       cleanUrl('orders');
@@ -1098,8 +1110,8 @@ window.Store = {
       sessionStorage.setItem(
         'sf_flash',
         ar
-          ? `تم الدفع بنجاح للطلب رقم ${result?.order_number || ''}. حالة الدفع: مدفوع، وحالة الطلب: قيد المعالجة.`
-          : `Payment completed successfully for Order #${result?.order_number || ''}. Payment: Paid • Order: Processing.`
+          ? `تم الدفع بنجاح. طلبك رقم ${result?.order_number || ''} قيد المعالجة الآن.`
+          : `Payment successful. Order #${result?.order_number || ''} is now being processed.`
       );
 
       cleanUrl(`receipt/${result?.order_id || ''}`);
@@ -1119,8 +1131,8 @@ window.Store = {
         sessionStorage.setItem(
           'sf_flash',
           ar
-            ? 'تعذر إكمال معالجة دفع PayPal التجريبي: ' + message
-            : 'PayPal Sandbox payment processing could not be completed: ' + message
+            ? 'تعذر تأكيد حالة الدفع النهائية. يرجى مراجعة طلباتك قبل محاولة الدفع مرة أخرى. إذا كانت الحالة غير واضحة، تواصل معنا.'
+            : 'We could not confirm the final payment status. Please check My Orders before trying to pay again. If the status is unclear, contact us.'
         );
       } catch (_) {}
 
@@ -1135,6 +1147,12 @@ window.Store = {
     const state = params.get('paypal_sandbox');
 
     if (!state) return false;
+
+    if (this.state.profile?.role !== 'admin') {
+      history.replaceState({}, '', `${location.pathname}#home`);
+      location.hash = 'home';
+      return true;
+    }
 
     const cleanToAdmin = message => {
       try {
@@ -1256,7 +1274,12 @@ window.Store = {
         await Products.load();
       } catch (e) {
         console.error('Product data initialization failed:', e);
-        this.alert('The site loaded, but product data could not be loaded: ' + (e.message || e), 'err');
+        this.alert(
+          this.state.lang === 'ar'
+            ? 'تعذر تحميل المنتجات حالياً. يرجى تحديث الصفحة.'
+            : 'Products could not be loaded right now. Please refresh the page.',
+          'err'
+        );
       }
 
       await this.footer();
@@ -1314,12 +1337,17 @@ Store.start().catch(error => {
   console.error('Fatal UAEGamer startup error:', error);
   Store.applyBasicUI();
   Store.renderNav();
+  const ar = Store.state.lang === 'ar';
   Store.view(`
     <div class="alert err">
-      UAEGamer encountered a startup error: ${Store.esc(error.message || error)}
+      ${ar
+        ? 'تعذر تحميل الموقع بشكل صحيح. يرجى تحديث الصفحة والمحاولة مرة أخرى.'
+        : 'UAEGamer could not load correctly. Please refresh the page and try again.'}
     </div>
     <div class="card">
-      The page controls remain available. Open your browser developer console for the full error.
+      ${ar
+        ? 'إذا استمرت المشكلة، يرجى التواصل معنا.'
+        : 'If the problem continues, please contact us.'}
     </div>
   `);
 });
