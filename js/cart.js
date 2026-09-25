@@ -1,6 +1,10 @@
 window.Cart = {
   key: 'storefront_cart_v1',
   checkoutStateKey: 'storefront_checkout_state_v1',
+  cardCheckoutKey: 'uaegamer_card_checkout_v1',
+  cardPaymentSession: null,
+  cardSdkEnvironment: null,
+  checkoutPaymentMethodTouched: false,
 
   getCheckoutState() {
     try {
@@ -31,6 +35,8 @@ window.Cart = {
   clear() {
     localStorage.removeItem(this.key);
     this.clearCheckoutState();
+    try { sessionStorage.removeItem(this.cardCheckoutKey); } catch (_) {}
+    this.cardPaymentSession = null;
     Store.renderNav();
   },
 
@@ -421,18 +427,23 @@ window.Cart = {
     const profile = Store.state.profile || {};
     const email = Store.state.user?.email || '';
     const itemTotal = rows.reduce((sum,[p,q]) => sum + Products.price(p)*q, 0);
+    const cardFeatureEnabled = Store.state.settings?.paypal_card_payments_enabled === true;
+
+    this.cardPaymentSession = null;
+    this.checkoutPaymentMethodTouched = false;
+
     Store.view(`
       <button id="back-cart" class="btn secondary">← ${t('backCart')}</button>
 
       <h2>${t('deliveryPayment')}</h2>
 
-      <form id="checkout-form" class="panel">
+      <form id="checkout-form" class="panel" novalidate>
         <div class="alert ok">
-          <strong>${ar ? 'الدفع عبر PayPal' : 'Pay with PayPal'}</strong>
+          <strong>${ar ? 'الدفع الآمن' : 'Secure payment'}</strong>
           <div>
             ${ar
-              ? `سيتم حجز المنتجات لمدة تصل إلى ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة أثناء إكمال الدفع عبر PayPal.`
-              : `Your items will be reserved for up to ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes while you complete payment with PayPal.`}
+              ? `سيتم حجز المنتجات لمدة تصل إلى ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة أثناء إكمال الدفع.`
+              : `Your items will be reserved for up to ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes while you complete payment.`}
           </div>
         </div>
 
@@ -486,8 +497,8 @@ window.Cart = {
             <div class="approx-aed">${t('equalsApprox')}: ${(itemTotal*3.67).toFixed(2)} ${t('aed')}</div>
           </div>
           <p class="muted inclusive-price-note">${ar
-            ? 'السعر النهائي يشمل ضريبة القيمة المضافة المطبقة ورسوم التوصيل ورسوم PayPal/معالجة الدفع. لن تتم إضافة أي رسوم إضافية.'
-            : 'The final price includes applicable VAT, delivery charges, and PayPal/payment-processing fees. No additional charges will be added.'}</p>
+            ? 'السعر النهائي يشمل ضريبة القيمة المضافة المطبقة ورسوم التوصيل ورسوم معالجة الدفع. لن تتم إضافة أي رسوم إضافية.'
+            : 'The final price includes applicable VAT, delivery charges, and payment-processing fees. No additional charges will be added.'}</p>
         </div>
 
         <div class="form-group checkout-agree">
@@ -497,9 +508,67 @@ window.Cart = {
           </label>
         </div>
 
-        <button id="automatic-paypal-btn" type="submit" class="btn primary">
-          ${ar ? 'المتابعة إلى PayPal' : 'Continue to PayPal'}
-        </button>
+        <h3>${ar ? 'طريقة الدفع' : 'Payment Method'}</h3>
+
+        <div class="payment-method-tabs">
+          ${cardFeatureEnabled ? `
+            <button type="button" id="payment-method-card" class="payment-method-tab hidden">
+              ${ar ? 'بطاقة ائتمان أو خصم' : 'Credit or Debit Card'}
+            </button>
+          ` : ''}
+          <button type="button" id="payment-method-paypal" class="payment-method-tab active">
+            PayPal
+          </button>
+        </div>
+
+        ${cardFeatureEnabled ? `
+          <div id="card-payment-loading" class="card payment-method-panel">
+            <div class="muted">${ar ? 'جارٍ التحقق من توفر الدفع بالبطاقة…' : 'Checking card payment availability…'}</div>
+          </div>
+
+          <div id="card-payment-panel" class="card payment-method-panel hidden">
+            <div class="card-payment-intro">
+              <strong>${ar ? 'الدفع بالبطاقة' : 'Pay by card'}</strong>
+              <p class="muted">${ar
+                ? 'أدخل بيانات بطاقتك بأمان. تتم معالجة بيانات البطاقة مباشرة بواسطة PayPal ولا يتم تخزين رقم البطاقة الكامل في UAEGamer.'
+                : 'Enter your card details securely. Card details are handled directly by PayPal and UAEGamer never stores your full card number.'}</p>
+            </div>
+
+            <div class="paypal-card-grid">
+              <div class="form-group card-field-full">
+                <label>${ar ? 'الاسم على البطاقة' : 'Name on card'}</label>
+                <div id="paypal-card-name" class="paypal-card-field"></div>
+              </div>
+              <div class="form-group card-field-full">
+                <label>${ar ? 'رقم البطاقة' : 'Card number'}</label>
+                <div id="paypal-card-number" class="paypal-card-field"></div>
+              </div>
+              <div class="form-group">
+                <label>${ar ? 'تاريخ الانتهاء' : 'Expiry date'}</label>
+                <div id="paypal-card-expiry" class="paypal-card-field"></div>
+              </div>
+              <div class="form-group">
+                <label>CVV</label>
+                <div id="paypal-card-cvv" class="paypal-card-field"></div>
+              </div>
+            </div>
+
+            <div id="card-payment-message" class="muted" aria-live="polite"></div>
+
+            <button type="button" id="card-pay-btn" class="btn primary" disabled>
+              ${ar ? `ادفع ${itemTotal.toFixed(2)} USD` : `Pay ${itemTotal.toFixed(2)} USD`}
+            </button>
+          </div>
+        ` : ''}
+
+        <div id="paypal-payment-panel" class="card payment-method-panel">
+          <p>${ar
+            ? 'سيتم تحويلك إلى PayPal لإكمال الدفع.'
+            : 'You will be redirected to PayPal to complete payment.'}</p>
+          <button id="automatic-paypal-btn" type="button" class="btn primary">
+            ${ar ? 'المتابعة إلى PayPal' : 'Continue to PayPal'}
+          </button>
+        </div>
 
         ${allowManualFallback ? `
           <button id="manual-paypal-fallback" type="button" class="btn secondary" style="margin-top:8px">
@@ -509,28 +578,431 @@ window.Cart = {
       </form>
     `);
 
-    document.getElementById('back-cart').onclick = () => {
+    const form = document.getElementById('checkout-form');
+    form.onsubmit = event => event.preventDefault();
+
+    const validateCommonFields = () => {
+      const required = form.querySelectorAll('[required]');
+      for (const field of required) {
+        if (field.id === 'delivery-agree') continue;
+        if (typeof field.reportValidity === 'function' && !field.checkValidity()) {
+          field.reportValidity();
+          return false;
+        }
+      }
+
+      if (!document.getElementById('delivery-agree')?.checked) {
+        Store.alert(
+          ar ? 'يجب الموافقة على سياسة التوصيل أولاً.' : 'You must agree to the Delivery Policy first.',
+          'err'
+        );
+        return false;
+      }
+      return true;
+    };
+
+    const selectMethod = method => {
+      this.checkoutPaymentMethodTouched = true;
+      document.getElementById('payment-method-card')?.classList.toggle('active', method === 'card');
+      document.getElementById('payment-method-paypal')?.classList.toggle('active', method === 'paypal');
+      document.getElementById('card-payment-panel')?.classList.toggle('hidden', method !== 'card');
+      document.getElementById('paypal-payment-panel')?.classList.toggle('hidden', method !== 'paypal');
+    };
+
+    document.getElementById('payment-method-card')?.addEventListener('click', () => selectMethod('card'));
+    document.getElementById('payment-method-paypal')?.addEventListener('click', () => selectMethod('paypal'));
+
+    document.getElementById('back-cart').onclick = async () => {
       this.forceManualCheckout = false;
+      await this.cancelCardCheckoutAttempt();
       Store.go('cart');
     };
 
-    document.getElementById('manual-paypal-fallback')?.addEventListener('click', () => {
+    document.getElementById('manual-paypal-fallback')?.addEventListener('click', async () => {
+      await this.cancelCardCheckoutAttempt();
       this.forceManualCheckout = true;
       this.renderCheckout();
     });
 
-    document.getElementById('checkout-form').onsubmit = async event => {
-      event.preventDefault();
+    document.getElementById('automatic-paypal-btn').addEventListener('click', async () => {
+      if (!validateCommonFields()) return;
+      await this.cancelCardCheckoutAttempt();
+      await this.submitAutomaticOrder(rows);
+    });
 
-      if (!document.getElementById('delivery-agree')?.checked) {
-        return Store.alert(
-          ar ? 'يجب الموافقة على سياسة التوصيل أولاً.' : 'You must agree to the Delivery Policy first.',
-          'err'
+    if (cardFeatureEnabled) {
+      this.recoverCardCheckoutAttempt().then(recovered => {
+        if (!recovered) {
+          this.initializeCardFields(rows, itemTotal, selectMethod, validateCommonFields);
+        }
+      });
+    }
+  },
+
+  getCardCheckoutAttempt() {
+    try {
+      return JSON.parse(sessionStorage.getItem(this.cardCheckoutKey) || 'null');
+    } catch {
+      return null;
+    }
+  },
+
+  saveCardCheckoutAttempt(attempt) {
+    try {
+      sessionStorage.setItem(this.cardCheckoutKey, JSON.stringify(attempt));
+    } catch (_) {}
+  },
+
+  clearCardCheckoutAttempt() {
+    try { sessionStorage.removeItem(this.cardCheckoutKey); } catch (_) {}
+  },
+
+  async cancelCardCheckoutAttempt() {
+    const attempt = this.getCardCheckoutAttempt();
+    if (!attempt?.orderId) return;
+
+    try {
+      await db.rpc('cancel_automatic_order_by_id', { p_order_id: attempt.orderId });
+    } catch (error) {
+      console.warn('Unable to cancel pending card checkout attempt:', error);
+    } finally {
+      this.clearCardCheckoutAttempt();
+    }
+  },
+
+  async recoverCardCheckoutAttempt() {
+    const attempt = this.getCardCheckoutAttempt();
+    if (!attempt?.orderId) return false;
+
+    try {
+      const { data:order, error } = await db
+        .from('orders')
+        .select('id,order_number,payment_status,status')
+        .eq('id', attempt.orderId)
+        .maybeSingle();
+
+      if (error || !order) {
+        this.clearCardCheckoutAttempt();
+        return false;
+      }
+
+      if (order.payment_status === 'paid') {
+        this.clearCardCheckoutAttempt();
+        this.clear();
+        await Products.load();
+        Store.alert(
+          Store.state.lang === 'ar'
+            ? `تم الدفع بنجاح. الطلب رقم ${order.order_number} قيد المعالجة.`
+            : `Payment successful. Order #${order.order_number} is now being processed.`
+        );
+        Store.go(`receipt/${order.id}`);
+        return true;
+      }
+
+      if (['cancelled','rejected'].includes(order.status) || ['failed','refunded','reversed'].includes(order.payment_status)) {
+        this.clearCardCheckoutAttempt();
+      }
+    } catch (error) {
+      console.warn('Card checkout recovery check failed:', error);
+    }
+
+    return false;
+  },
+
+  async loadPayPalCardSdk(environment) {
+    const expectedSrc = environment === 'live'
+      ? 'https://www.paypal.com/web-sdk/v6/core'
+      : 'https://www.sandbox.paypal.com/web-sdk/v6/core';
+
+    if (window.paypal?.createInstance && this.cardSdkEnvironment === environment) return;
+
+    const existing = document.getElementById('paypal-web-sdk-v6');
+    if (existing && existing.dataset.environment !== environment) {
+      existing.remove();
+      try { delete window.paypal; } catch (_) { window.paypal = undefined; }
+    }
+
+    if (window.paypal?.createInstance) {
+      this.cardSdkEnvironment = environment;
+      return;
+    }
+
+    await new Promise((resolve,reject) => {
+      let script = document.getElementById('paypal-web-sdk-v6');
+      if (script) {
+        script.addEventListener('load', resolve, {once:true});
+        script.addEventListener('error', () => reject(new Error('Unable to load secure card payment fields.')), {once:true});
+        return;
+      }
+
+      script = document.createElement('script');
+      script.id = 'paypal-web-sdk-v6';
+      script.async = true;
+      script.src = expectedSrc;
+      script.dataset.environment = environment;
+      script.onload = resolve;
+      script.onerror = () => reject(new Error('Unable to load secure card payment fields.'));
+      document.head.appendChild(script);
+    });
+
+    if (!window.paypal?.createInstance) {
+      throw new Error('Card payment service did not initialize.');
+    }
+
+    this.cardSdkEnvironment = environment;
+  },
+
+  async initializeCardFields(rows, itemTotal, selectMethod, validateCommonFields) {
+    const ar = Store.state.lang === 'ar';
+    const loading = document.getElementById('card-payment-loading');
+    const panel = document.getElementById('card-payment-panel');
+    const cardTab = document.getElementById('payment-method-card');
+    const payButton = document.getElementById('card-pay-btn');
+    const message = document.getElementById('card-payment-message');
+
+    try {
+      const { data:tokenData, error:tokenError } = await db.functions.invoke('paypal-card-client-token', {
+        body:{}
+      });
+
+      if (tokenError) throw tokenError;
+      if (tokenData?.error || !tokenData?.accessToken) {
+        throw new Error(tokenData?.error || 'Unable to initialize card payments.');
+      }
+
+      await this.loadPayPalCardSdk(tokenData.environment);
+
+      const sdk = await window.paypal.createInstance({
+        clientToken: tokenData.accessToken,
+        components:['card-fields'],
+        pageType:'checkout',
+      });
+
+      const methods = await sdk.findEligibleMethods({
+        currencyCode:'USD',
+        amount:Number(itemTotal || 0).toFixed(2),
+      });
+
+      if (!methods?.isEligible?.('advanced_cards')) {
+        throw new Error('Direct card payments are not available for this checkout.');
+      }
+
+      const session = sdk.createCardFieldsOneTimePaymentSession();
+      this.cardPaymentSession = session;
+
+      const fieldStyle = {
+        input: {
+          fontSize:'16px',
+          lineHeight:'24px',
+          color:'#111827',
+        },
+        '.invalid': {
+          color:'#b91c1c',
+        },
+        ':focus': {
+          color:'#111827',
+        },
+      };
+
+      const fields = [
+        ['paypal-card-name','name', ar ? 'الاسم على البطاقة' : 'Name on card'],
+        ['paypal-card-number','number', ar ? 'رقم البطاقة' : 'Card number'],
+        ['paypal-card-expiry','expiry','MM/YY'],
+        ['paypal-card-cvv','cvv','CVV'],
+      ];
+
+      for (const [id,type,placeholder] of fields) {
+        const host = document.getElementById(id);
+        if (!host) throw new Error('Card field container is unavailable.');
+        host.replaceChildren(
+          session.createCardFieldsComponent({type,placeholder,style:fieldStyle})
         );
       }
 
-      await this.submitAutomaticOrder(rows);
-    };
+      loading?.classList.add('hidden');
+      cardTab?.classList.remove('hidden');
+      payButton.disabled = false;
+
+      if (!this.checkoutPaymentMethodTouched) {
+        selectMethod('card');
+        this.checkoutPaymentMethodTouched = false;
+      }
+
+      payButton.onclick = async () => {
+        if (!validateCommonFields()) return;
+        await this.submitCardOrder(rows);
+      };
+    } catch (error) {
+      console.warn('Direct card payment unavailable:', error);
+      this.cardPaymentSession = null;
+      loading?.classList.add('hidden');
+      panel?.classList.add('hidden');
+      cardTab?.classList.add('hidden');
+      document.getElementById('payment-method-paypal')?.classList.add('active');
+      document.getElementById('paypal-payment-panel')?.classList.remove('hidden');
+
+      if (message) message.textContent = '';
+    }
+  },
+
+  async submitCardOrder(rows) {
+    const ar = Store.state.lang === 'ar';
+    const form = document.getElementById('checkout-form');
+    const button = document.getElementById('card-pay-btn');
+    const message = document.getElementById('card-payment-message');
+
+    if (!form || !button || !this.cardPaymentSession) return;
+
+    const fd = new FormData(form);
+    const items = rows.map(([product,quantity]) => ({
+      product_id:product.id,
+      quantity
+    }));
+
+    button.disabled = true;
+    const originalText = button.textContent;
+    button.textContent = ar ? 'جارٍ تجهيز الدفع…' : 'Preparing payment…';
+    if (message) message.textContent = '';
+
+    let attempt = this.getCardCheckoutAttempt();
+    let createdLocalOrderId = null;
+
+    try {
+      if (!attempt?.orderId || !attempt?.paypalOrderId) {
+        const { data:orderData, error:orderError } = await db.rpc('create_order_automatic', {
+          p_items:items,
+          p_first_name:String(fd.get('first_name')||'').trim(),
+          p_last_name:String(fd.get('last_name')||'').trim(),
+          p_email:String(fd.get('email')||'').trim(),
+          p_mobile_number:String(fd.get('mobile_number')||'').trim(),
+          p_delivery_address:String(fd.get('delivery_address')||'').trim(),
+          p_customer_notes:String(fd.get('customer_notes')||'').trim() || null
+        });
+
+        if (orderError) throw orderError;
+        createdLocalOrderId = orderData?.order_id || null;
+
+        const { data:paypal, error:paypalError } = await db.functions.invoke('paypal-create-order', {
+          body:{
+            action:'create_card',
+            order_id:orderData?.order_id
+          }
+        });
+
+        if (paypalError) throw paypalError;
+        if (paypal?.error) throw new Error(paypal.error);
+        if (!paypal?.paypal_order_id) throw new Error('Card payment order could not be created.');
+
+        attempt = {
+          orderId:String(orderData?.order_id || ''),
+          orderNumber:orderData?.order_number,
+          paypalOrderId:String(paypal.paypal_order_id),
+          environment:paypal.environment,
+        };
+        this.saveCardCheckoutAttempt(attempt);
+      }
+
+      button.textContent = ar ? 'جارٍ التحقق من البطاقة…' : 'Verifying card…';
+
+      const result = await this.cardPaymentSession.submit(attempt.paypalOrderId);
+
+      if (result?.state === 'canceled') {
+        if (message) {
+          message.textContent = ar
+            ? 'تم إلغاء التحقق. يمكنك المحاولة مرة أخرى.'
+            : 'Card authentication was cancelled. You can try again.';
+        }
+        return;
+      }
+
+      if (result?.state === 'failed') {
+        console.warn('Card submission failed:', result?.data);
+        if (message) {
+          message.textContent = ar
+            ? 'تعذر إكمال الدفع بالبطاقة. تحقق من البيانات أو جرّب بطاقة أخرى.'
+            : 'Card payment could not be completed. Check your details or try another card.';
+        }
+        return;
+      }
+
+      if (result?.state !== 'succeeded' || !result?.data?.orderId) {
+        console.warn('Unexpected card submission state:', result);
+        if (message) {
+          message.textContent = ar
+            ? 'تعذر إكمال الدفع. يرجى المحاولة مرة أخرى.'
+            : 'Unable to complete the card payment. Please try again.';
+        }
+        return;
+      }
+
+      if (String(result.data.orderId) !== String(attempt.paypalOrderId)) {
+        throw new Error('Card payment order mismatch.');
+      }
+
+      button.textContent = ar ? 'جارٍ إكمال الدفع…' : 'Completing payment…';
+
+      const { data:capture, error:captureError } = await db.functions.invoke('paypal-capture-order', {
+        body:{
+          action:'capture_order',
+          paypal_order_id:attempt.paypalOrderId
+        }
+      });
+
+      if (captureError) throw captureError;
+      if (capture?.error) throw new Error(capture.error);
+      if (!capture?.success) throw new Error('Payment capture did not complete.');
+
+      this.clearCardCheckoutAttempt();
+      this.clear();
+      await Products.load();
+
+      Store.alert(
+        ar
+          ? `تم الدفع بنجاح. الطلب رقم ${capture?.order_number || attempt.orderNumber || ''} قيد المعالجة.`
+          : `Payment successful. Order #${capture?.order_number || attempt.orderNumber || ''} is now being processed.`
+      );
+      Store.go(`receipt/${capture?.order_id || attempt.orderId}`);
+    } catch (error) {
+      console.error('Card checkout failed:', error);
+
+      let backendMessage = '';
+      try {
+        if (error?.context?.json) {
+          const body = await error.context.json();
+          backendMessage = body?.error || '';
+        }
+      } catch (_) {}
+
+      const text = String(backendMessage || error?.message || '');
+      const authFailure =
+        text.includes('3D Secure') ||
+        text.includes('CARD_AUTHENTICATION_NOT_ACCEPTED') ||
+        text.toLowerCase().includes('authentication');
+
+      if (!attempt?.orderId && createdLocalOrderId) {
+        try {
+          await db.rpc('cancel_automatic_order_by_id', { p_order_id:createdLocalOrderId });
+        } catch (_) {}
+      }
+
+      if (authFailure && attempt?.orderId) {
+        await this.cancelCardCheckoutAttempt();
+        attempt = null;
+      }
+
+      if (message) {
+        message.textContent = authFailure
+          ? (ar
+              ? 'تعذر التحقق من البطاقة بأمان. جرّب مرة أخرى أو استخدم بطاقة أخرى أو PayPal.'
+              : 'We could not securely verify this card. Try again, use another card, or choose PayPal.')
+          : (ar
+              ? 'تعذر إكمال الدفع. تحقق من طلباتك قبل إعادة المحاولة لتجنب الدفع مرتين.'
+              : 'Payment could not be completed. Check My Orders before trying again to avoid paying twice.');
+      }
+    } finally {
+      button.disabled = false;
+      button.textContent = originalText;
+    }
   },
 
   async submitAutomaticOrder(rows) {
@@ -583,34 +1055,14 @@ window.Cart = {
     } catch (error) {
       console.error(error);
 
-      // If UAEGamer created the order but PayPal setup failed, cancel the
-      // unpaid order when possible. Stock has not been deducted.
       if (createdOrder?.order_id) {
         try {
-          const { data: latest } = await db
-            .from('orders')
-            .select('paypal_order_id')
-            .eq('id', createdOrder.order_id)
-            .maybeSingle();
-
-          if (latest?.paypal_order_id) {
-            await db.rpc('cancel_automatic_paypal_order', {
-              p_paypal_order_id: latest.paypal_order_id
-            });
-          }
+          await db.rpc('cancel_automatic_order_by_id', {
+            p_order_id: createdOrder.order_id
+          });
         } catch (_) {}
       }
 
-      let message = error?.message || String(error);
-      try {
-        const context = error?.context;
-        if (context?.json) {
-          const body = await context.json();
-          if (body?.error) message = body.error;
-        }
-      } catch (_) {}
-
-      console.error('PayPal checkout start failed:', message);
       Store.alert(
         ar
           ? 'تعذر بدء الدفع عبر PayPal. يرجى المحاولة مرة أخرى، أو التواصل معنا إذا استمرت المشكلة.'

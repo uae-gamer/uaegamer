@@ -801,6 +801,16 @@ window.Store = {
                           : (this.state.lang === 'ar' ? 'غير مدفوع' : 'Unpaid')
             )}
           </div>
+          ${o.paypal_payment_source ? `
+            <div>
+              <strong>${this.state.lang === 'ar' ? 'طريقة الدفع' : 'Payment Method'}:</strong>
+              ${this.esc(
+                o.paypal_payment_source === 'card'
+                  ? ((o.paypal_card_brand ? o.paypal_card_brand + ' ' : '') + (o.paypal_card_last_digits ? '•••• ' + o.paypal_card_last_digits : (this.state.lang === 'ar' ? 'بطاقة ائتمان أو خصم' : 'Credit/Debit Card')))
+                  : 'PayPal'
+              )}
+            </div>
+          ` : ''}
           <ul>
             ${(o.order_items || []).map(i => `
               <li>${this.esc(i.product_title)} × ${Number(i.quantity || 0)}
@@ -877,7 +887,12 @@ window.Store = {
         <div class="receipt-meta">
           <div><strong>${ar ? 'رقم الطلب' : 'Order #'}:</strong> ${this.esc(order.order_number)}<br>
           <strong>${ar ? 'التاريخ والوقت' : 'Date and Time'}:</strong> ${order.created_at ? new Date(order.created_at).toLocaleString() : ''}<br>
-          <strong>${ar ? 'حالة الطلب' : 'Order Status'}:</strong> ${this.statusBadge(order.status)}</div>
+          <strong>${ar ? 'حالة الطلب' : 'Order Status'}:</strong> ${this.statusBadge(order.status)}<br>
+          ${order.paypal_payment_source ? `<strong>${ar ? 'طريقة الدفع' : 'Payment Method'}:</strong> ${this.esc(
+            order.paypal_payment_source === 'card'
+              ? ((order.paypal_card_brand ? order.paypal_card_brand + ' ' : '') + (order.paypal_card_last_digits ? '•••• ' + order.paypal_card_last_digits : (ar ? 'بطاقة ائتمان أو خصم' : 'Credit/Debit Card')))
+              : 'PayPal'
+          )}` : ''}</div>
           <div><strong>${ar ? 'اسم العميل' : 'Customer Name'}:</strong> ${this.esc((order.first_name||'')+' '+(order.last_name||''))}<br>
           <strong>${t('email')}:</strong> ${this.esc(order.email||'')}<br>
           <strong>${ar ? 'الهاتف المتحرك' : 'Mobile'}:</strong> ${this.esc(order.mobile_number||'')}<br>
@@ -1142,6 +1157,102 @@ window.Store = {
     return true;
   },
 
+  async handleCard3DSReturn() {
+    const params = new URLSearchParams(location.search);
+    const state = params.get('card_3ds');
+    if (!state) return false;
+
+    const ar = this.state.lang === 'ar';
+    const attempt = Cart.getCardCheckoutAttempt?.() || null;
+    const paypalOrderId = String(params.get('token') || attempt?.paypalOrderId || '').trim();
+
+    const cleanUrl = hash => {
+      history.replaceState({}, '', `${location.pathname}#${hash}`);
+      location.hash = hash;
+    };
+
+    if (!this.state.user) {
+      try {
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'انتهت جلسة تسجيل الدخول. سجّل الدخول ثم راجع طلباتك للتحقق من حالة الدفع.'
+            : 'Your login session is unavailable. Sign in and check My Orders to confirm the payment status.'
+        );
+      } catch (_) {}
+      cleanUrl('login');
+      return true;
+    }
+
+    if (state === 'cancelled') {
+      try {
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'تم إلغاء التحقق من البطاقة. يمكنك المحاولة مرة أخرى من سلة التسوق.'
+            : 'Card authentication was cancelled. You can try again from your cart.'
+        );
+      } catch (_) {}
+      cleanUrl('cart');
+      return true;
+    }
+
+    if (state !== 'approved' || !paypalOrderId) {
+      try {
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'تعذر تأكيد حالة الدفع. راجع طلباتك قبل إعادة المحاولة.'
+            : 'We could not confirm the payment status. Check My Orders before trying again.'
+        );
+      } catch (_) {}
+      cleanUrl('orders');
+      return true;
+    }
+
+    try {
+      if (attempt?.paypalOrderId && String(attempt.paypalOrderId) !== paypalOrderId) {
+        throw new Error('Card payment order mismatch.');
+      }
+
+      const { data:result, error } = await db.functions.invoke('paypal-capture-order', {
+        body:{
+          action:'capture_order',
+          paypal_order_id:paypalOrderId
+        }
+      });
+
+      if (error) throw error;
+      if (result?.error) throw new Error(result.error);
+
+      Cart.clearCardCheckoutAttempt?.();
+      Cart.clear();
+      await Products.load();
+
+      sessionStorage.setItem(
+        'sf_flash',
+        ar
+          ? `تم الدفع بنجاح. طلبك رقم ${result?.order_number || attempt?.orderNumber || ''} قيد المعالجة.`
+          : `Payment successful. Order #${result?.order_number || attempt?.orderNumber || ''} is now being processed.`
+      );
+
+      cleanUrl(`receipt/${result?.order_id || attempt?.orderId || ''}`);
+    } catch (error) {
+      console.error('Card 3DS return capture failed:', error);
+      try {
+        sessionStorage.setItem(
+          'sf_flash',
+          ar
+            ? 'تعذر تأكيد حالة الدفع النهائية. راجع طلباتك قبل إعادة محاولة الدفع.'
+            : 'We could not confirm the final payment status. Check My Orders before trying to pay again.'
+        );
+      } catch (_) {}
+      cleanUrl('orders');
+    }
+
+    return true;
+  },
+
   async handlePayPalSandboxReturn() {
     const params = new URLSearchParams(location.search);
     const state = params.get('paypal_sandbox');
@@ -1266,6 +1377,7 @@ window.Store = {
       }
 
       await this.handlePayPalCheckoutReturn();
+      await this.handleCard3DSReturn();
       await this.handlePayPalSandboxReturn();
 
       this.renderNav();

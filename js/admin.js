@@ -1032,6 +1032,11 @@ window.Admin = {
               <span><strong>Payment:</strong> ${Store.esc(o.payment_status || 'unpaid')}</span>
               ${o.paypal_order_id ? `<br><small>PayPal Order: <code>${Store.esc(o.paypal_order_id)}</code></small>` : ''}
               ${o.paypal_capture_id ? `<br><small>Capture: <code>${Store.esc(o.paypal_capture_id)}</code></small>` : ''}
+              ${o.paypal_payment_source ? `<br><small><strong>Payment Source:</strong> ${
+                o.paypal_payment_source === 'card'
+                  ? `Credit/Debit Card${o.paypal_card_brand ? ` • ${Store.esc(o.paypal_card_brand)}` : ''}${o.paypal_card_last_digits ? ` •••• ${Store.esc(o.paypal_card_last_digits)}` : ''}`
+                  : 'PayPal'
+              }</small>` : ''}
               ${(() => {
                 const completedRefunds = (o.paypal_refunds || []).filter(r => r.status === 'completed');
                 const refunded = completedRefunds.reduce((sum,r) => sum + Number(r.amount || 0), 0);
@@ -2366,9 +2371,19 @@ window.Admin = {
               max="60"
               step="1"
               value="${Store.escAttr(data.paypal_reservation_minutes || 20)}">
-            <small class="muted">Recommended: 20 minutes. Applies only to automatic PayPal checkout.</small>
+            <small class="muted">Recommended: 20 minutes. Applies only to automatic PayPal/card checkout.</small>
           </div>
         </div>
+
+        <label class="check-line">
+          <input type="checkbox" name="paypal_card_payments_enabled" style="width:auto" ${data.paypal_card_payments_enabled===true?'checked':''}>
+          Enable Direct Credit/Debit Card Checkout
+        </label>
+        <p class="muted">
+          Uses PayPal-hosted Card Fields. The option is shown to customers only when PayPal reports
+          Advanced Credit and Debit Card Payments as eligible for the current merchant, buyer and transaction.
+          UAEGamer never receives or stores the full card number or CVV.
+        </p>
 
         <div class="alert">
           Step 36 supports both Sandbox and Live with separate server-side credentials.
@@ -2713,6 +2728,7 @@ window.Admin = {
       payload.send_welcome_email = fd.has('send_welcome_email');
       payload.send_order_customer_emails = fd.has('send_order_customer_emails');
       payload.send_admin_new_order_email = fd.has('send_admin_new_order_email');
+      payload.paypal_card_payments_enabled = fd.has('paypal_card_payments_enabled');
 
       const faviconFile = fd.get('favicon_upload');
       const removeFavicon = fd.has('remove_favicon');
