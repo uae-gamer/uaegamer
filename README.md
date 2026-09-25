@@ -1,3 +1,3 @@
-# UAEGamer Step 36.1
+# UAEGamer Step 37
 
-Live customer UX cleanup after Step 36. See `STEP36-1-UX.md`.
+Direct credit/debit card checkout through PayPal Card Fields, with PayPal wallet fallback and no Fastlane. See `STEP37-DEPLOY.md`.
