@@ -1,3 +1,3 @@
-# UAEGamer Step 35
+# UAEGamer Step 36
 
-Final PayPal Sandbox production-readiness audit before Live cutover. See `STEP35-DEPLOY.md`.
+Final PayPal Live cutover with dual Sandbox/Live credentials, Live preflight, environment-safe webhooks, and rollback support. See `STEP36-DEPLOY.md`.
