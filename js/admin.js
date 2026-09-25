@@ -2347,9 +2347,10 @@ window.Admin = {
           <div class="form-group">
             <label>PayPal Environment</label>
             <select name="paypal_environment">
-              <option value="sandbox" ${(data.paypal_environment||'sandbox')==='sandbox'?'selected':''}>Sandbox</option>
-              <option value="live" ${data.paypal_environment==='live'?'selected':''}>Live</option>
+              <option value="sandbox" selected>Sandbox</option>
+              <option value="live" disabled>Live — Locked until Step 36</option>
             </select>
+            <small class="muted">Step 35 deliberately prevents accidental Live activation.</small>
           </div>
 
           <div class="form-group">
@@ -2366,8 +2367,8 @@ window.Admin = {
         </div>
 
         <div class="alert">
-          Step 33: automatic PayPal checkout now reserves stock for a limited period before payment.
-          Manual Verification remains unchanged. Live PayPal is still intentionally disabled.
+          Step 35: Sandbox payment hardening is complete and Live remains database-locked.
+          Run the readiness audit below before proceeding to Step 36.
         </div>
 
         <div class="paypal-sandbox-test">
@@ -2400,6 +2401,19 @@ window.Admin = {
           automatic PayPal orders can now be reconciled or refunded from Admin → Orders.
           Full/partial refunds are Sandbox-only. Partial refunds never restore stock automatically;
           a full refund offers an explicit stock-restoration choice.
+        </div>
+
+        <div class="paypal-readiness-panel card">
+          <h4>Step 35 — PayPal Production Readiness</h4>
+          <p class="muted">
+            Admin-only. Checks Sandbox secrets, OAuth, PayPal webhook registration/event subscriptions,
+            database integrity, RLS, reservation cleanup and payment audit consistency.
+            Secret values are never displayed.
+          </p>
+          <button type="button" id="paypal-readiness-check" class="btn primary">
+            Run Payment Readiness Check
+          </button>
+          <div id="paypal-readiness-result" style="margin-top:10px"></div>
         </div>
 
         <h3>Animated Background</h3>
@@ -2586,6 +2600,63 @@ window.Admin = {
         } catch (_) {}
 
         resultHost.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
+        Store.setBusy(button, false);
+      }
+    });
+
+    document.getElementById('paypal-readiness-check')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      const host = document.getElementById('paypal-readiness-result');
+      if (!host) return;
+
+      Store.setBusy(button, true, 'Checking…');
+      host.innerHTML = '<div class="alert">Running PayPal Sandbox readiness audit…</div>';
+
+      try {
+        const { data:result, error } = await db.functions.invoke('paypal-readiness', {
+          body:{ action:'audit' }
+        });
+
+        if (error) throw error;
+        if (result?.error) throw new Error(result.error);
+
+        const icon = status => status === 'pass' ? '✓' : status === 'warn' ? '!' : '✕';
+        const cls = status => status === 'pass' ? 'ok' : status === 'warn' ? '' : 'err';
+
+        host.innerHTML = `
+          <div class="alert ${result?.ready ? 'ok' : 'err'}">
+            <strong>${result?.ready ? 'READY FOR FINAL LIVE CUTOVER PREPARATION' : 'NOT READY FOR LIVE CUTOVER'}</strong><br>
+            Critical failures: ${Number(result?.critical_failures || 0)}
+            • Warnings: ${Number(result?.warnings || 0)}
+            <br><small>Warnings should be reviewed even when the audit is ready.</small>
+          </div>
+
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Status</th><th>Check</th><th>Detail</th></tr></thead>
+              <tbody>
+                ${(result?.checks || []).map(check => `
+                  <tr>
+                    <td><strong>${icon(check.status)} ${Store.esc(String(check.status || '').toUpperCase())}</strong></td>
+                    <td>${Store.esc(check.label || check.key || '')}</td>
+                    <td>${Store.esc(check.detail || '')}</td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+        `;
+      } catch (error) {
+        let message = error?.message || String(error);
+        try {
+          if (error?.context?.json) {
+            const body = await error.context.json();
+            if (body?.error) message = body.error;
+          }
+        } catch (_) {}
+
+        host.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
+      } finally {
         Store.setBusy(button, false);
       }
     });
