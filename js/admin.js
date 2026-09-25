@@ -2346,11 +2346,13 @@ window.Admin = {
 
           <div class="form-group">
             <label>PayPal Environment</label>
-            <select name="paypal_environment">
-              <option value="sandbox" selected>Sandbox</option>
-              <option value="live" disabled>Live — Locked until Step 36</option>
+            <select name="paypal_environment" id="paypal-environment-select">
+              <option value="sandbox" ${(data.paypal_environment||'sandbox')==='sandbox'?'selected':''}>Sandbox</option>
+              <option value="live" ${data.paypal_environment==='live'?'selected':''} ${data.paypal_live_enabled===true?'':'disabled'}>
+                Live${data.paypal_live_enabled===true?'':' — Run Step 36 SQL first'}
+              </option>
             </select>
-            <small class="muted">Step 35 deliberately prevents accidental Live activation.</small>
+            <small class="muted">Use Live only after the Live Preflight below passes with zero critical failures.</small>
           </div>
 
           <div class="form-group">
@@ -2367,8 +2369,8 @@ window.Admin = {
         </div>
 
         <div class="alert">
-          Step 35: Sandbox payment hardening is complete and Live remains database-locked.
-          Run the readiness audit below before proceeding to Step 36.
+          Step 36 supports both Sandbox and Live with separate server-side credentials.
+          Keep Automatic + Manual Fallback during initial Live validation so you can immediately revert customer checkout if needed.
         </div>
 
         <div class="paypal-sandbox-test">
@@ -2404,15 +2406,19 @@ window.Admin = {
         </div>
 
         <div class="paypal-readiness-panel card">
-          <h4>Step 35 — PayPal Production Readiness</h4>
+          <h4>Step 36 — PayPal Live Cutover</h4>
           <p class="muted">
-            Admin-only. Checks Sandbox secrets, OAuth, PayPal webhook registration/event subscriptions,
-            database integrity, RLS, reservation cleanup and payment audit consistency.
-            Secret values are never displayed.
+            Keep the site on Sandbox until Live credentials and a separate Live webhook are configured.
+            The Live Preflight validates them without exposing secret values or changing customer traffic.
           </p>
-          <button type="button" id="paypal-readiness-check" class="btn primary">
-            Run Payment Readiness Check
-          </button>
+          <div class="inline-actions">
+            <button type="button" id="paypal-readiness-check" class="btn secondary">
+              Check Active Environment
+            </button>
+            <button type="button" id="paypal-live-preflight" class="btn primary">
+              Run Live Preflight
+            </button>
+          </div>
           <div id="paypal-readiness-result" style="margin-top:10px"></div>
         </div>
 
@@ -2604,33 +2610,35 @@ window.Admin = {
       }
     });
 
-    document.getElementById('paypal-readiness-check')?.addEventListener('click', async event => {
-      const button = event.currentTarget;
+    const runPayPalReadiness = async (button, action) => {
       const host = document.getElementById('paypal-readiness-result');
       if (!host) return;
 
-      Store.setBusy(button, true, 'Checking…');
-      host.innerHTML = '<div class="alert">Running PayPal Sandbox readiness audit…</div>';
+      Store.setBusy(button, true, action === 'live_preflight' ? 'Testing Live…' : 'Checking…');
+      host.innerHTML = `<div class="alert">${action === 'live_preflight'
+        ? 'Testing Live credentials and Live webhook while customer traffic remains unchanged…'
+        : 'Checking the currently active PayPal environment…'}</div>`;
 
       try {
         const { data:result, error } = await db.functions.invoke('paypal-readiness', {
-          body:{ action:'audit' }
+          body:{ action }
         });
 
         if (error) throw error;
         if (result?.error) throw new Error(result.error);
 
         const icon = status => status === 'pass' ? '✓' : status === 'warn' ? '!' : '✕';
-        const cls = status => status === 'pass' ? 'ok' : status === 'warn' ? '' : 'err';
 
         host.innerHTML = `
           <div class="alert ${result?.ready ? 'ok' : 'err'}">
-            <strong>${result?.ready ? 'READY FOR FINAL LIVE CUTOVER PREPARATION' : 'NOT READY FOR LIVE CUTOVER'}</strong><br>
-            Critical failures: ${Number(result?.critical_failures || 0)}
+            <strong>${result?.ready ? 'READINESS CHECK PASSED' : 'READINESS CHECK FAILED'}</strong><br>
+            Target: ${Store.esc(String(result?.target_environment || '').toUpperCase())}
+            • Critical failures: ${Number(result?.critical_failures || 0)}
             • Warnings: ${Number(result?.warnings || 0)}
-            <br><small>Warnings should be reviewed even when the audit is ready.</small>
+            <br><small>${action === 'live_preflight' && result?.ready
+              ? 'Live credentials/webhook passed preflight. You may switch Payment Environment to Live when ready for the controlled real transaction.'
+              : 'Review every warning/failure before proceeding.'}</small>
           </div>
-
           <div class="table-wrap">
             <table>
               <thead><tr><th>Status</th><th>Check</th><th>Detail</th></tr></thead>
@@ -2654,11 +2662,18 @@ window.Admin = {
             if (body?.error) message = body.error;
           }
         } catch (_) {}
-
         host.innerHTML = `<div class="alert err">${Store.esc(message)}</div>`;
       } finally {
         Store.setBusy(button, false);
       }
+    };
+
+    document.getElementById('paypal-readiness-check')?.addEventListener('click', event => {
+      runPayPalReadiness(event.currentTarget, 'audit');
+    });
+
+    document.getElementById('paypal-live-preflight')?.addEventListener('click', event => {
+      runPayPalReadiness(event.currentTarget, 'live_preflight');
     });
 
     document.getElementById('settings-form').onsubmit = async event => {
@@ -2668,6 +2683,17 @@ window.Admin = {
       if (submitButton?.disabled) return;
       Store.setBusy(submitButton, true, 'Saving…');
       const fd = new FormData(form);
+
+      const requestedPayPalEnvironment = String(fd.get('paypal_environment') || 'sandbox');
+      if (requestedPayPalEnvironment === 'live' && String(data.paypal_environment || 'sandbox') !== 'live') {
+        const confirmed = confirm(
+          'LIVE PAYPAL ACTIVATION\n\nThis will make automatic checkout use real PayPal credentials and real money.\n\nOnly continue if the Live Preflight passed and you are ready to perform the controlled real transaction.'
+        );
+        if (!confirmed) {
+          Store.setBusy(submitButton, false);
+          return;
+        }
+      }
 
       const payload = {};
       for (const [key,value] of fd.entries()) {

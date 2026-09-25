@@ -194,11 +194,12 @@ window.Cart = {
 
     const settings = Store.state.settings || {};
     const paymentMode = String(settings.payment_mode || 'manual');
-    const sandboxAutomatic =
-      String(settings.paypal_environment || 'sandbox') === 'sandbox'
+    const paypalEnvironment = String(settings.paypal_environment || 'sandbox');
+    const automaticPayPal =
+      ['sandbox','live'].includes(paypalEnvironment)
       && (paymentMode === 'automatic_fallback' || paymentMode === 'automatic');
 
-    if (sandboxAutomatic && !this.forceManualCheckout) {
+    if (automaticPayPal && !this.forceManualCheckout) {
       return this.renderAutomaticCheckout(rows, paymentMode === 'automatic_fallback');
     }
 
@@ -414,6 +415,8 @@ window.Cart = {
     const profile = Store.state.profile || {};
     const email = Store.state.user?.email || '';
     const itemTotal = rows.reduce((sum,[p,q]) => sum + Products.price(p)*q, 0);
+    const paypalEnvironment = String(Store.state.settings?.paypal_environment || 'sandbox');
+    const isLive = paypalEnvironment === 'live';
 
     Store.view(`
       <button id="back-cart" class="btn secondary">← ${t('backCart')}</button>
@@ -422,11 +425,17 @@ window.Cart = {
 
       <form id="checkout-form" class="panel">
         <div class="alert ok">
-          <strong>${ar ? 'PayPal التلقائي - وضع الاختبار' : 'Automatic PayPal — Sandbox Test Mode'}</strong>
+          <strong>${isLive
+            ? (ar ? 'الدفع التلقائي عبر PayPal' : 'Automatic PayPal')
+            : (ar ? 'PayPal التلقائي - وضع الاختبار' : 'Automatic PayPal — Sandbox Test Mode')}</strong>
           <div>
-            ${ar
-              ? `سيتم حجز المخزون لمدة ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة ثم فتح PayPal Sandbox. لا تستخدم حساب PayPal الحقيقي.`
-              : `Stock will be reserved for ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes, then PayPal Sandbox will open. Use a Sandbox buyer account only.`}
+            ${isLive
+              ? (ar
+                  ? `سيتم حجز المخزون لمدة ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة ثم تحويلك إلى PayPal لإتمام الدفع الحقيقي.`
+                  : `Stock will be reserved for ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes, then you will be redirected to PayPal to complete the real payment.`)
+              : (ar
+                  ? `سيتم حجز المخزون لمدة ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} دقيقة ثم فتح PayPal Sandbox. لا تستخدم حساب PayPal الحقيقي.`
+                  : `Stock will be reserved for ${Number(Store.state.settings?.paypal_reservation_minutes || 20)} minutes, then PayPal Sandbox will open. Use a Sandbox buyer account only.`)}
           </div>
         </div>
 
@@ -492,7 +501,9 @@ window.Cart = {
         </div>
 
         <button id="automatic-paypal-btn" type="submit" class="btn primary">
-          ${ar ? 'المتابعة إلى PayPal التجريبي' : 'Continue to PayPal Sandbox'}
+          ${isLive
+            ? (ar ? 'المتابعة إلى PayPal' : 'Continue to PayPal')
+            : (ar ? 'المتابعة إلى PayPal التجريبي' : 'Continue to PayPal Sandbox')}
         </button>
 
         ${allowManualFallback ? `
@@ -524,9 +535,13 @@ window.Cart = {
       }
 
       if (!confirm(
-        ar
-          ? 'سيتم إنشاء طلب غير مدفوع ثم تحويلك إلى PayPal Sandbox لإتمام الدفع التجريبي. هل تريد المتابعة؟'
-          : 'An unpaid UAEGamer order will be created and you will be redirected to PayPal Sandbox. Continue?'
+        isLive
+          ? (ar
+              ? 'سيتم إنشاء طلب غير مدفوع وحجز المخزون ثم تحويلك إلى PayPal لإتمام دفع حقيقي. هل تريد المتابعة؟'
+              : 'An unpaid UAEGamer order will be created, stock will be reserved, and you will be redirected to PayPal for a real payment. Continue?')
+          : (ar
+              ? 'سيتم إنشاء طلب غير مدفوع ثم تحويلك إلى PayPal Sandbox لإتمام الدفع التجريبي. هل تريد المتابعة؟'
+              : 'An unpaid UAEGamer order will be created and you will be redirected to PayPal Sandbox. Continue?')
       )) return;
 
       await this.submitAutomaticOrder(rows);
