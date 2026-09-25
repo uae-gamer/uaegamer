@@ -1,3 +1,3 @@
-# UAEGamer Step 33
+# UAEGamer Step 34
 
-Automatic PayPal stock reservations and stale checkout cleanup. See `STEP33-DEPLOY.md`.
+PayPal Sandbox refunds and reversal/refund state handling. See `STEP34-DEPLOY.md`.
