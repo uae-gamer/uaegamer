@@ -12,9 +12,9 @@
   <script>
   (function () {
     try {
-      const lang = localStorage.getItem('sf_lang') || 'en';
-      const theme = localStorage.getItem('sf_theme') || 'light';
       const cached = JSON.parse(localStorage.getItem('sf_cached_settings') || '{}');
+      const lang = localStorage.getItem('sf_lang') || (cached.default_language === 'ar' ? 'ar' : 'en');
+      const theme = localStorage.getItem('sf_theme') || 'light';
 
       document.documentElement.lang = lang;
       document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';

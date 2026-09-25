@@ -11,9 +11,9 @@
   <link href="https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;700&family=Jersey+10&family=Montserrat:wght@400;600;700&family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
   <script>
 (function(){try{
- const lang=localStorage.getItem('sf_lang')||'en';
- const theme=localStorage.getItem('sf_theme')||'light';
  const cached=JSON.parse(localStorage.getItem('sf_cached_settings')||'{}');
+ const lang=localStorage.getItem('sf_lang')||(cached.default_language==='ar'?'ar':'en');
+ const theme=localStorage.getItem('sf_theme')||'light';
  document.documentElement.lang=lang; document.documentElement.dir=lang==='ar'?'rtl':'ltr';
  document.documentElement.dataset.theme=theme;
  const st=document.documentElement.style;

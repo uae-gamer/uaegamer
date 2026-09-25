@@ -1,3 +1,3 @@
-# UAEGamer Step 37
+# UAEGamer Step 37.1
 
-Direct credit/debit card checkout through PayPal Card Fields, with PayPal wallet fallback and no Fastlane. See `STEP37-DEPLOY.md`.
+Maintenance update: default first-visit language, standalone-page font propagation fix, and admin-only PayPal card eligibility diagnostic. See `STEP37-1-DEPLOY.md`.
