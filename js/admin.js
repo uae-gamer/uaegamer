@@ -20,6 +20,25 @@ window.Admin = {
     ['csv','CSV Data']
   ],
 
+  pageSizes: {
+    items: 50,
+    orders: 25,
+    users: 50,
+    messages: 50,
+  },
+
+  pager(page, pages, total, label='items') {
+    if (pages <= 1) return `<div class="muted">${Number(total||0).toLocaleString()} ${label}</div>`;
+    return `
+      <div class="pagination admin-pagination">
+        <button type="button" class="mini page-prev" ${page<=1?'disabled':''}>Previous</button>
+        <span>Page ${page} of ${pages} • ${Number(total||0).toLocaleString()} ${label}</span>
+        <button type="button" class="mini page-next" ${page>=pages?'disabled':''}>Next</button>
+      </div>
+    `;
+  },
+
+
   async render(tab='items') {
     if (Store.state.profile?.role !== 'admin') {
       Store.view('<div class="alert err">Admin access required.</div>');
@@ -157,18 +176,49 @@ window.Admin = {
     `;
   },
 
-  async items(editId=null) {
-    const { data, error } = await db.from('products').select('*').order('sort_order');
-    if (error) return this.err(error);
+  async items(editId=null, page=1, search='') {
+    const perPage = this.pageSizes.items;
+    const offset = (page - 1) * perPage;
+    const term = String(search || '').trim();
 
-    const products = data || [];
-    const editProduct = editId ? products.find(p => p.id === editId) : null;
+    let query = db.from('products')
+      .select('*', { count:'exact' })
+      .order('sort_order', { ascending:true })
+      .order('created_at', { ascending:false })
+      .range(offset, offset + perPage - 1);
+
+    if (term) query = query.ilike('title', `%${term}%`);
+
+    const [pageResult, maxOrderResult, editResult] = await Promise.all([
+      query,
+      db.from('products').select('sort_order').order('sort_order',{ascending:false}).limit(1),
+      editId ? db.from('products').select('*').eq('id',editId).maybeSingle() : Promise.resolve({data:null,error:null})
+    ]);
+
+    if (pageResult.error) return this.err(pageResult.error);
+    if (maxOrderResult.error) return this.err(maxOrderResult.error);
+    if (editResult.error) return this.err(editResult.error);
+
+    const products = pageResult.data || [];
+    const total = Number(pageResult.count || 0);
+    const pages = Math.max(1, Math.ceil(total / perPage));
+
+    if (page > pages) return this.items(editId, pages, term);
+
+    const editProduct = editResult.data || null;
+    const suggestedOrder = Number(maxOrderResult.data?.[0]?.sort_order || 0) + 1;
     const host = document.getElementById('admin-body');
 
     host.innerHTML = `
-      <h2>Manage Listed Items (${products.length})</h2>
+      <h2>Manage Listed Items (${total.toLocaleString()})</h2>
 
-      ${this.productForm(editProduct, products.length ? Math.max(...products.map(x => Number(x.sort_order||0))) + 1 : 1)}
+      ${this.productForm(editProduct, suggestedOrder)}
+
+      <div class="included-admin-toolbar">
+        <input id="admin-product-search" type="search"
+               placeholder="Search listed items by English title..."
+               value="${Store.escAttr(term)}">
+      </div>
 
       <div class="table-wrap">
         <table>
@@ -198,10 +248,12 @@ window.Admin = {
                   <button class="btn danger delete-product" data-id="${p.id}">Delete</button>
                 </td>
               </tr>
-            `).join('')}
+            `).join('') || '<tr><td colspan="7">No listed items found.</td></tr>'}
           </tbody>
         </table>
       </div>
+
+      ${this.pager(page, pages, total, 'items')}
     `;
 
     const form = document.getElementById('product-form');
@@ -222,28 +274,35 @@ window.Admin = {
         category_id: fd.get('category_id') || null,
         type_id: fd.get('type_id') || null,
         paypal_link: String(fd.get('paypal_link')||'').trim() || null,
-        sort_order: Number(fd.get('sort_order') || (products.length ? Math.max(...products.map(x => Number(x.sort_order||0))) + 1 : 1)),
+        sort_order: Number(fd.get('sort_order') || suggestedOrder),
         active: fd.has('active')
       };
 
-      let result;
-      if (editProduct) {
-        result = await db.from('products').update(payload).eq('id', editProduct.id);
-      } else {
-        result = await db.from('products').insert(payload);
-      }
+      const result = editProduct
+        ? await db.from('products').update(payload).eq('id', editProduct.id)
+        : await db.from('products').insert(payload);
 
       if (result.error) return this.err(result.error);
 
       await Products.load();
       Store.alert(editProduct ? 'Listed item updated.' : 'Listed item added.');
-      await this.items();
+      await this.items(null, page, term);
     };
 
-    document.getElementById('cancel-edit')?.addEventListener('click', () => this.items());
+    document.getElementById('cancel-edit')?.addEventListener('click', () => this.items(null,page,term));
+
+    let searchTimer;
+    document.getElementById('admin-product-search').oninput = event => {
+      clearTimeout(searchTimer);
+      const value = event.target.value.trim();
+      searchTimer = setTimeout(() => this.items(null,1,value),250);
+    };
+
+    host.querySelector('.page-prev')?.addEventListener('click', () => this.items(null,page-1,term));
+    host.querySelector('.page-next')?.addEventListener('click', () => this.items(null,page+1,term));
 
     host.querySelectorAll('.edit-product').forEach(b => {
-      b.onclick = () => this.items(b.dataset.id);
+      b.onclick = () => this.items(b.dataset.id, page, term);
     });
 
     host.querySelectorAll('.manage-product').forEach(b => {
@@ -273,7 +332,7 @@ window.Admin = {
 
         await Products.load();
         Store.alert('Listed item deleted.');
-        await this.items();
+        await this.items(null,page,term);
       };
     });
   },
@@ -387,25 +446,26 @@ window.Admin = {
         }
       });
 
-      document.getElementById('save-content-page')?.addEventListener('click', async () => {
+      document.getElementById('save-content-page')?.addEventListener('click', async event => {
+        const button = event.currentTarget;
         const fields = Array.from(listHost.querySelectorAll('.content-name'));
-
-        for (const nameField of fields) {
+        const payload = fields.map(nameField => {
           const id = nameField.dataset.id;
           const orderField = listHost.querySelector(`.content-order[data-id="${CSS.escape(id)}"]`);
+          return {
+            id,
+            name: nameField.value.trim(),
+            sort_order: Number(orderField?.value || 0)
+          };
+        });
 
-          const result = await db.from('included_content')
-            .update({
-              name: nameField.value.trim(),
-              name_ar: null,
-              sort_order: Number(orderField?.value || 0)
-            })
-            .eq('id', id);
+        Store.setBusy(button, true, 'Saving…');
+        const result = await db.rpc('admin_batch_update_included_content', { p_rows:payload });
+        Store.setBusy(button, false);
 
-          if (result.error) return this.err(result.error);
-        }
+        if (result.error) return this.err(result.error);
 
-        Store.alert('Visible Included Content changes saved.');
+        Store.alert(`${Number(result.data || payload.length)} Included Content changes saved.`);
         renderIncluded();
       });
 
@@ -612,16 +672,19 @@ window.Admin = {
       await this.manageProduct(productId);
     };
 
-    document.getElementById('save-image-order')?.addEventListener('click', async () => {
+    document.getElementById('save-image-order')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
       const fields = Array.from(document.querySelectorAll('.image-order'));
+      const payload = fields.map(field => ({
+        id:field.dataset.id,
+        sort_order:Number(field.value||0)
+      }));
 
-      for (const field of fields) {
-        const result = await db.from('product_images')
-          .update({ sort_order: Number(field.value||0) })
-          .eq('id', field.dataset.id);
+      Store.setBusy(button, true, 'Saving…');
+      const result = await db.rpc('admin_batch_update_product_images', { p_rows:payload });
+      Store.setBusy(button, false);
 
-        if (result.error) return this.err(result.error);
-      }
+      if (result.error) return this.err(result.error);
 
       Store.alert('Image order saved.');
       await Products.load();
@@ -917,24 +980,30 @@ window.Admin = {
       await this.manageProduct(productId);
     };
 
-    document.getElementById('save-expenses')?.addEventListener('click', async () => {
+    document.getElementById('save-expenses')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
       const names = Array.from(document.querySelectorAll('.expense-name'));
 
-      for (const nameField of names) {
+      const payload = names.map(nameField => {
         const id = nameField.dataset.id;
         const typeField = document.querySelector(`.expense-type[data-id="${CSS.escape(id)}"]`);
         const valueField = document.querySelector(`.expense-value[data-id="${CSS.escape(id)}"]`);
         const orderField = document.querySelector(`.expense-order[data-id="${CSS.escape(id)}"]`);
 
-        const result = await db.from('product_expenses').update({
-          name: nameField.value.trim(),
-          expense_type: typeField.value,
-          expense_value: Number(valueField.value||0),
-          sort_order: Number(orderField.value||0)
-        }).eq('id', id);
+        return {
+          id,
+          name:nameField.value.trim(),
+          expense_type:typeField.value,
+          expense_value:Number(valueField.value||0),
+          sort_order:Number(orderField.value||0)
+        };
+      });
 
-        if (result.error) return this.err(result.error);
-      }
+      Store.setBusy(button, true, 'Saving…');
+      const result = await db.rpc('admin_batch_update_product_expenses', { p_rows:payload });
+      Store.setBusy(button, false);
+
+      if (result.error) return this.err(result.error);
 
       Store.alert('Expenses updated.');
       await this.manageProduct(productId);
@@ -1087,21 +1156,28 @@ window.Admin = {
   types() { return this.simpleTable('product_types','Types'); },
   textbar() { return this.simpleTable('text_bar','Text Bar','text','text_ar'); },
 
-  async orders(showDeleted=false) {
+  async orders(showDeleted=false, page=1) {
+    const perPage = this.pageSizes.orders;
+    const offset = (page - 1) * perPage;
+
     let query = db.from('orders')
-      .select('*,order_items(*),paypal_refunds(*)')
-      .order(showDeleted ? 'deleted_at' : 'created_at',{ascending:false});
+      .select('*,order_items(*),paypal_refunds(*)', { count:'exact' })
+      .order(showDeleted ? 'deleted_at' : 'created_at',{ascending:false})
+      .range(offset, offset + perPage - 1);
 
     query = showDeleted ? query.not('deleted_at','is',null) : query.is('deleted_at',null);
 
-    const {data,error} = await query;
+    const {data,error,count} = await query;
     if (error) return this.err(error);
 
     const rows = data || [];
+    const total = Number(count || 0);
+    const pages = Math.max(1, Math.ceil(total / perPage));
+    if (page > pages) return this.orders(showDeleted, pages);
 
     document.getElementById('admin-body').innerHTML = `
       <div class="admin-title-row">
-        <h2>${showDeleted ? 'Deleted Orders' : 'Manage Orders'} (${rows.length})</h2>
+        <h2>${showDeleted ? 'Deleted Orders' : 'Manage Orders'} (${total.toLocaleString()})</h2>
         <button id="toggle-deleted-orders" class="btn secondary">
           ${showDeleted ? 'View Active Orders' : 'View Deleted Orders'}
         </button>
@@ -1202,9 +1278,13 @@ window.Admin = {
           `}
         </div>
       `).join('') || `<div class="card">${showDeleted ? 'No deleted orders.' : 'No active orders yet.'}</div>`}
+
+      ${this.pager(page, pages, total, 'orders')}
     `;
 
-    document.getElementById('toggle-deleted-orders').onclick = () => this.orders(!showDeleted);
+    document.getElementById('toggle-deleted-orders').onclick = () => this.orders(!showDeleted,1);
+    document.querySelector('.page-prev')?.addEventListener('click', () => this.orders(showDeleted,page-1));
+    document.querySelector('.page-next')?.addEventListener('click', () => this.orders(showDeleted,page+1));
 
     document.querySelectorAll('.admin-receipt').forEach(btn => {
       btn.onclick = () => Store.go(`receipt/${btn.dataset.id}`);
@@ -1227,7 +1307,7 @@ window.Admin = {
         if (result.error) return this.err(result.error);
 
         Store.alert('Order changes saved.');
-        await this.orders(false);
+        await this.orders(false,page);
       };
     });
 
@@ -1301,7 +1381,7 @@ window.Admin = {
             + (data?.stock_restored ? ' • Stock restored' : '')
           );
 
-          await this.orders(false);
+          await this.orders(false,page);
         } catch (error) {
           let message = error?.message || String(error);
           try {
@@ -1333,7 +1413,7 @@ window.Admin = {
               ? `PayPal reconciliation: ${result.status}${result.paypal_status ? ` • ${result.paypal_status}` : ''}`
               : 'PayPal reconciliation completed.'
           );
-          await this.orders(false);
+          await this.orders(false,page);
         } catch (error) {
           let message = error?.message || String(error);
           try {
@@ -1361,7 +1441,7 @@ window.Admin = {
 
         if (result.error) return this.err(result.error);
         Store.alert('Order moved to Deleted Orders and excluded from reports.');
-        await this.orders(false);
+        await this.orders(false,page);
       };
     });
 
@@ -1377,7 +1457,7 @@ window.Admin = {
 
         if (result.error) return this.err(result.error);
         Store.alert('Order restored.');
-        await this.orders(true);
+        await this.orders(true,page);
       };
     });
   },
@@ -1451,13 +1531,24 @@ window.Admin = {
     const step=Math.max(1,Math.ceil(rows.length/8));rows.forEach((r,i)=>{if(i%step===0||i===rows.length-1){ctx.save();ctx.translate(x(i),h-8);ctx.rotate(-.35);ctx.fillText(r.period,0,0);ctx.restore()}});
   },
 
-  async messages() {
-    const {data,error} = await db.from('messages').select('*').order('created_at',{ascending:false});
+  async messages(page=1) {
+    const perPage = this.pageSizes.messages;
+    const offset = (page - 1) * perPage;
+
+    const {data,error,count} = await db.from('messages')
+      .select('*', { count:'exact' })
+      .order('created_at',{ascending:false})
+      .range(offset, offset + perPage - 1);
+
     if (error) return this.err(error);
 
     const rows = data || [];
+    const total = Number(count || 0);
+    const pages = Math.max(1, Math.ceil(total / perPage));
+    if (page > pages) return this.messages(pages);
+
     document.getElementById('admin-body').innerHTML = `
-      <h2>Contact Messages (${rows.length})</h2>
+      <h2>Contact Messages (${total.toLocaleString()})</h2>
       ${rows.length ? `<div class="table-wrap"><table>
         <thead><tr><th>Date</th><th>Email</th><th>Type</th><th>Message</th><th>Action</th></tr></thead>
         <tbody>${rows.map(m => `
@@ -1469,7 +1560,12 @@ window.Admin = {
             <td><button class="btn danger delete-message" data-id="${m.id}">Delete</button></td>
           </tr>`).join('')}</tbody>
       </table></div>` : '<div class="card">No contact messages received.</div>'}
+
+      ${this.pager(page, pages, total, 'messages')}
     `;
+
+    document.querySelector('.page-prev')?.addEventListener('click', () => this.messages(page-1));
+    document.querySelector('.page-next')?.addEventListener('click', () => this.messages(page+1));
 
     document.querySelectorAll('.delete-message').forEach(btn => {
       btn.onclick = async () => {
@@ -1477,7 +1573,7 @@ window.Admin = {
         const result = await db.from('messages').delete().eq('id',btn.dataset.id);
         if (result.error) return this.err(result.error);
         Store.alert('Message deleted.');
-        await this.messages();
+        await this.messages(page);
       };
     });
   },
@@ -1503,34 +1599,38 @@ window.Admin = {
     return data;
   },
 
-  async users() {
+  async users(page=1) {
+    const perPage = this.pageSizes.users;
     const body = document.getElementById('admin-body');
     body.innerHTML = '<div class="card">Loading registered users…</div>';
 
-    const [profilesResult, authResult] = await Promise.allSettled([
-      db.from('profiles').select('*').order('created_at', { ascending: false }),
-      this.callAdminUserFunction({ action: 'list', page: 1, per_page: 200 })
-    ]);
-
-    if (profilesResult.status === 'rejected') {
-      return this.err(profilesResult.reason);
+    let authResult;
+    try {
+      authResult = await this.callAdminUserFunction({ action:'list', page, per_page:perPage });
+    } catch (error) {
+      return this.err(error);
     }
 
-    const profileResponse = profilesResult.value;
-    if (profileResponse.error) return this.err(profileResponse.error);
+    const authUsers = authResult.users || [];
+    const ids = authUsers.map(u => u.id);
+    const total = Number(authResult.total || authUsers.length || 0);
+    const pages = Math.max(1, Math.ceil(total / perPage));
 
-    const profiles = profileResponse.data || [];
-    const authUsers = authResult.status === 'fulfilled' ? (authResult.value.users || []) : [];
-    const authById = new Map(authUsers.map(u => [u.id, u]));
+    if (page > pages) return this.users(pages);
+
+    let profiles = [];
+    if (ids.length) {
+      const profileResponse = await db.from('profiles').select('*').in('id',ids);
+      if (profileResponse.error) return this.err(profileResponse.error);
+
+      const profileById = new Map((profileResponse.data || []).map(profile => [profile.id,profile]));
+      profiles = ids.map(id => profileById.get(id)).filter(Boolean);
+    }
+
+    const authById = new Map(authUsers.map(u => [u.id,u]));
 
     body.innerHTML = `
-      <h2>Manage Registered Users (${profiles.length})</h2>
-
-      ${authResult.status === 'rejected' ? `
-        <div class="alert err">
-          Auth administration Edge Function is not available yet:
-          ${Store.esc(authResult.reason?.message || authResult.reason)}
-        </div>` : ''}
+      <h2>Manage Registered Users (${total.toLocaleString()})</h2>
 
       <p class="muted">
         Profile fields and roles are stored in the database. Login email, password and account
@@ -1562,22 +1662,27 @@ window.Admin = {
                   <td><button class="btn edit-user" data-id="${u.id}">Manage User</button></td>
                 </tr>
               `;
-            }).join('')}
+            }).join('') || '<tr><td colspan="8">No registered users found on this page.</td></tr>'}
           </tbody>
         </table>
       </div>
 
+      ${this.pager(page, pages, total, 'users')}
+
       <div id="user-editor"></div>
     `;
+
+    body.querySelector('.page-prev')?.addEventListener('click', () => this.users(page-1));
+    body.querySelector('.page-next')?.addEventListener('click', () => this.users(page+1));
 
     document.querySelectorAll('.edit-user').forEach(btn => {
       const profile = profiles.find(x => x.id === btn.dataset.id);
       const auth = authById.get(btn.dataset.id) || null;
-      btn.onclick = () => this.editUserProfile(profile, auth);
+      btn.onclick = () => this.editUserProfile(profile, auth, page);
     });
   },
 
-  editUserProfile(user, authUser = null) {
+  editUserProfile(user, authUser = null, page=1) {
     if (!user) return;
 
     const host = document.getElementById('user-editor');
@@ -1683,7 +1788,7 @@ window.Admin = {
 
       Store.alert('User profile updated.');
       if (user.id === Store.state.user?.id) await Auth.refresh();
-      await this.users();
+      await this.users(page);
     };
 
     if (authUser) {
@@ -1707,7 +1812,7 @@ window.Admin = {
           });
 
           Store.alert('Auth account updated.');
-          await this.users();
+          await this.users(page);
         } catch (e) {
           this.err(e);
         }
@@ -1727,7 +1832,7 @@ window.Admin = {
           });
 
           Store.alert(`User account ${nextDisabled ? 'disabled' : 'enabled'}.`);
-          await this.users();
+          await this.users(page);
         } catch (e) {
           this.err(e);
         }

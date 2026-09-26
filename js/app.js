@@ -472,18 +472,76 @@ window.Store = {
     if (error) console.error('Analytics tracking failed:', error);
   },
 
-  async renderPublicStats() {
+  async renderPublicStats(force=false) {
     const s = this.state.settings || {};
     let host = document.getElementById('public-stats');
-    if (!s.show_stats) { host?.remove(); return; }
-    if (!host) {
-      host = document.createElement('div'); host.id='public-stats'; host.className='stats-bar public-stats';
-      const footerPanel=document.querySelector('.footer-panel');
-      footerPanel?.appendChild(host);
+
+    if (!s.show_stats) {
+      host?.remove();
+      return;
     }
-    const { data, error } = await db.rpc('public_store_stats');
-    if (error) { console.error(error); host.innerHTML=''; return; }
-    host.innerHTML = `<span class="stat-pill">Page Views: ${Number(data?.page_views||0).toLocaleString()}</span><span class="stat-pill">Unique Visitors: ${Number(data?.unique_visitors||0).toLocaleString()}</span><span class="stat-pill">Registered Members: ${Number(data?.registered_users||0).toLocaleString()}</span><span class="stat-pill">Users Online: ${Number(data?.online_users||0).toLocaleString()}</span>`;
+
+    if (!host) {
+      host = document.createElement('div');
+      host.id = 'public-stats';
+      host.className = 'stats-bar public-stats';
+      document.querySelector('.footer-panel')?.appendChild(host);
+    }
+
+    const ttlMs = 120000;
+    const now = Date.now();
+
+    const render = data => {
+      host.innerHTML = `
+        <span class="stat-pill">Page Views: ${Number(data?.page_views||0).toLocaleString()}</span>
+        <span class="stat-pill">Unique Visitors: ${Number(data?.unique_visitors||0).toLocaleString()}</span>
+        <span class="stat-pill">Registered Members: ${Number(data?.registered_users||0).toLocaleString()}</span>
+        <span class="stat-pill">Users Online: ${Number(data?.online_users||0).toLocaleString()}</span>
+      `;
+    };
+
+    if (!force && this._publicStatsCache && (now - this._publicStatsCache.at) < ttlMs) {
+      render(this._publicStatsCache.data);
+      return;
+    }
+
+    if (!force) {
+      try {
+        const cached = JSON.parse(sessionStorage.getItem('sf_public_stats_cache') || 'null');
+        if (cached?.at && cached?.data && (now - cached.at) < ttlMs) {
+          this._publicStatsCache = cached;
+          render(cached.data);
+          return;
+        }
+      } catch (_) {}
+    }
+
+    if (this._publicStatsPromise) {
+      try {
+        const data = await this._publicStatsPromise;
+        if (data) render(data);
+      } catch (_) {}
+      return;
+    }
+
+    this._publicStatsPromise = (async () => {
+      const { data, error } = await db.rpc('public_store_stats');
+      if (error) throw error;
+
+      const entry = { at:Date.now(), data:data || {} };
+      this._publicStatsCache = entry;
+      try { sessionStorage.setItem('sf_public_stats_cache', JSON.stringify(entry)); } catch (_) {}
+      return entry.data;
+    })();
+
+    try {
+      render(await this._publicStatsPromise);
+    } catch (error) {
+      console.error('Public stats failed:', error);
+      host.innerHTML = '';
+    } finally {
+      this._publicStatsPromise = null;
+    }
   },
 
   async refreshShell() {
@@ -568,6 +626,37 @@ window.Store = {
     else console.error(error);
   },
 
+  async loadAdminModule() {
+    if (window.Admin) return window.Admin;
+    if (this._adminModulePromise) return this._adminModulePromise;
+
+    this._adminModulePromise = new Promise((resolve,reject) => {
+      const existing = document.getElementById('uaegamer-admin-module');
+      if (existing) {
+        existing.addEventListener('load', () => resolve(window.Admin), {once:true});
+        existing.addEventListener('error', () => reject(new Error('Admin module failed to load.')), {once:true});
+        return;
+      }
+
+      const script = document.createElement('script');
+      script.id = 'uaegamer-admin-module';
+      script.src = './js/admin.js';
+      script.async = true;
+      script.onload = () => {
+        if (window.Admin) resolve(window.Admin);
+        else reject(new Error('Admin module loaded without initializing.'));
+      };
+      script.onerror = () => reject(new Error('Admin module failed to load.'));
+      document.body.appendChild(script);
+    });
+
+    try {
+      return await this._adminModulePromise;
+    } finally {
+      this._adminModulePromise = null;
+    }
+  },
+
   async route() {
     const route = (location.hash || '#home').slice(1);
     this.renderNav();
@@ -583,8 +672,20 @@ window.Store = {
     if (route.startsWith('receipt/')) return this.receiptView(route.split('/')[1]);
     if (route === 'contact') return this.contactView();
     if (route === 'admin' || route.startsWith('admin/')) {
-      const adminTab = route.includes('/') ? route.split('/')[1] : 'items';
-      return Admin.render(adminTab);
+      if (this.state.profile?.role !== 'admin') {
+        this.view('<div class="alert err">Admin access required.</div>');
+        return;
+      }
+
+      try {
+        const adminModule = await this.loadAdminModule();
+        const adminTab = route.includes('/') ? route.split('/')[1] : 'items';
+        return adminModule.render(adminTab);
+      } catch (error) {
+        console.error(error);
+        this.view('<div class="alert err">Admin tools could not be loaded. Please refresh the page and try again.</div>');
+        return;
+      }
     }
 
     return Products.renderHome();
@@ -760,15 +861,19 @@ window.Store = {
     });
   },
 
-  async ordersView() {
+  async ordersView(page=1) {
     if (!this.state.user) return this.go('login');
 
-    const { data, error } = await db
+    const perPage = 20;
+    const offset = (page - 1) * perPage;
+
+    const { data, error, count } = await db
       .from('orders')
-      .select('*,order_items(*)')
+      .select('*,order_items(*)', { count:'exact' })
       .eq('user_id', this.state.user.id)
       .is('deleted_at', null)
-      .order('created_at', { ascending: false });
+      .order('created_at', { ascending:false })
+      .range(offset, offset + perPage - 1);
 
     if (error) {
       console.error('Orders load failed:', error);
@@ -778,11 +883,18 @@ window.Store = {
       return;
     }
 
+    const rows = data || [];
+    const total = Number(count || 0);
+    const pages = Math.max(1, Math.ceil(total / perPage));
+
+    if (page > pages) return this.ordersView(pages);
+
     const receiptStatuses = new Set(['processing','confirmed','shipped','delivered']);
+    const ar = this.state.lang === 'ar';
 
     this.view(`
-      <h2>${t('orders')} (${(data || []).length})</h2>
-      ${(data || []).map(o => `
+      <h2>${t('orders')} (${total.toLocaleString()})</h2>
+      ${rows.map(o => `
         <div class="card">
           <div class="order-summary-head">
             <div>
@@ -793,29 +905,29 @@ window.Store = {
           </div>
           <div><strong>${t('total')}:</strong> ${Number(o.total_usd || 0).toFixed(2)} ${t('usd')}</div>
           <div>
-            <strong>${this.state.lang === 'ar' ? 'حالة الدفع' : 'Payment Status'}:</strong>
+            <strong>${ar ? 'حالة الدفع' : 'Payment Status'}:</strong>
             ${this.esc(
               o.payment_status === 'paid'
-                ? (this.state.lang === 'ar' ? 'مدفوع' : 'Paid')
+                ? (ar ? 'مدفوع' : 'Paid')
                 : o.payment_status === 'partially_refunded'
-                  ? (this.state.lang === 'ar' ? 'مسترد جزئياً' : 'Partially Refunded')
+                  ? (ar ? 'مسترد جزئياً' : 'Partially Refunded')
                   : o.payment_status === 'refunded'
-                    ? (this.state.lang === 'ar' ? 'مسترد بالكامل' : 'Refunded')
+                    ? (ar ? 'مسترد بالكامل' : 'Refunded')
                     : o.payment_status === 'reversed'
-                      ? (this.state.lang === 'ar' ? 'تم عكس الدفعة' : 'Reversed')
+                      ? (ar ? 'تم عكس الدفعة' : 'Reversed')
                       : o.payment_status === 'pending'
-                        ? (this.state.lang === 'ar' ? 'قيد الدفع' : 'Payment Pending')
+                        ? (ar ? 'قيد الدفع' : 'Payment Pending')
                         : o.payment_status === 'failed'
-                          ? (this.state.lang === 'ar' ? 'فشل/ألغي' : 'Failed/Cancelled')
-                          : (this.state.lang === 'ar' ? 'غير مدفوع' : 'Unpaid')
+                          ? (ar ? 'فشل/ألغي' : 'Failed/Cancelled')
+                          : (ar ? 'غير مدفوع' : 'Unpaid')
             )}
           </div>
           ${o.paypal_payment_source ? `
             <div>
-              <strong>${this.state.lang === 'ar' ? 'طريقة الدفع' : 'Payment Method'}:</strong>
+              <strong>${ar ? 'طريقة الدفع' : 'Payment Method'}:</strong>
               ${this.esc(
                 o.paypal_payment_source === 'card'
-                  ? ((o.paypal_card_brand ? o.paypal_card_brand + ' ' : '') + (o.paypal_card_last_digits ? '•••• ' + o.paypal_card_last_digits : (this.state.lang === 'ar' ? 'بطاقة ائتمان أو خصم' : 'Credit/Debit Card')))
+                  ? ((o.paypal_card_brand ? o.paypal_card_brand + ' ' : '') + (o.paypal_card_last_digits ? '•••• ' + o.paypal_card_last_digits : (ar ? 'بطاقة ائتمان أو خصم' : 'Credit/Debit Card')))
                   : 'PayPal'
               )}
             </div>
@@ -827,7 +939,7 @@ window.Store = {
                 i.paypal_transaction_id
                   || (o.paypal_capture_id
                     ? o.paypal_capture_id
-                    : (this.state.lang === 'ar' ? 'PayPal تلقائي' : 'Automatic PayPal'))
+                    : (ar ? 'PayPal تلقائي' : 'Automatic PayPal'))
               )}</small></li>
             `).join('')}
           </ul>
@@ -836,11 +948,22 @@ window.Store = {
             : `<span class="muted">${t('receiptAvailable')}</span>`}
         </div>
       `).join('') || `<div class="card">${t('noOrders')}</div>`}
+
+      ${pages > 1 ? `
+        <div class="pagination">
+          <button id="orders-prev" class="mini" ${page<=1?'disabled':''}>${ar?'السابق':'Previous'}</button>
+          <span>${ar ? `صفحة ${page} من ${pages}` : `Page ${page} of ${pages}`}</span>
+          <button id="orders-next" class="mini" ${page>=pages?'disabled':''}>${ar?'التالي':'Next'}</button>
+        </div>
+      ` : ''}
     `);
 
     document.querySelectorAll('.receipt-btn').forEach(btn => {
       btn.onclick = () => this.go(`receipt/${btn.dataset.id}`);
     });
+
+    document.getElementById('orders-prev')?.addEventListener('click', () => this.ordersView(page-1));
+    document.getElementById('orders-next')?.addEventListener('click', () => this.ordersView(page+1));
   },
 
   statusBadge(status) {
