@@ -244,6 +244,7 @@ window.Admin = {
                 <td>${p.active ? 'Yes' : 'No'}</td>
                 <td>
                   <button class="btn edit-product" data-id="${p.id}">Edit Item</button>
+                  <button class="btn secondary duplicate-product" data-id="${p.id}" data-title="${Store.escAttr(p.title||'')}">Duplicate Item</button>
                   <button class="btn secondary manage-product" data-id="${p.id}">Manage Images, Content and Expenses</button>
                   <button class="btn danger delete-product" data-id="${p.id}">Delete</button>
                 </td>
@@ -303,6 +304,41 @@ window.Admin = {
 
     host.querySelectorAll('.edit-product').forEach(b => {
       b.onclick = () => this.items(b.dataset.id, page, term);
+    });
+
+    host.querySelectorAll('.duplicate-product').forEach(b => {
+      b.onclick = async () => {
+        const title = b.dataset.title || 'this item';
+
+        const confirmed = confirm(
+          `Duplicate "${title}"?\n\n` +
+          'The new item will copy its product details, Included Content and Expenses. ' +
+          'Images will NOT be copied. The duplicate will be created as Inactive so it cannot appear to customers before you review it.'
+        );
+
+        if (!confirmed) return;
+
+        Store.setBusy(b, true, 'Duplicating…');
+
+        const { data, error } = await db.rpc('admin_duplicate_product', {
+          p_product_id:b.dataset.id
+        });
+
+        Store.setBusy(b, false);
+
+        if (error) return this.err(error);
+        if (!data?.product_id) return this.err(new Error('The duplicated product ID was not returned.'));
+
+        await Products.load();
+
+        Store.alert(
+          `Item duplicated. Copied ${Number(data.included_content_copied||0).toLocaleString()} Included Content entries ` +
+          `and ${Number(data.expenses_copied||0).toLocaleString()} expenses. Images were not copied.`
+        );
+
+        // Open the new inactive item immediately for editing.
+        await this.items(String(data.product_id), page, term);
+      };
     });
 
     host.querySelectorAll('.manage-product').forEach(b => {
