@@ -25,7 +25,7 @@ home:'الرئيسية',cart:'السلة',orders:'طلباتي',account:'إدا�
 notifications:'الإشعارات',rights:'جميع الحقوق محفوظة.',powered:'مدعوم بواسطة Supabase – مستضاف على GitHub Pages',
 search:'البحث في المنتجات...',allCategories:'جميع التصنيفات',allTypes:'كل الأنواع',defaultOrder:'الترتيب الافتراضي',az:'الاسم: أ-ي',za:'الاسم: ي-أ',
 lowHigh:'السعر: من الأقل إلى الأعلى',highLow:'السعر: من الأعلى إلى الأقل',noItems:'لا توجد منتجات متاحة للبيع حالياً.',included:'المحتويات المشمولة',
-addCart:'أضف إلى السلة',coming:'قريباً',out:'نفد المخزون',inStock:'متوفر',viewDetails:'عرض التفاصيل',previous:'السابق',next:'التالي',
+addCart:'أضف إلى السلة',coming:'قريباً',out:'نفد المخزون',inStock:'متوفر',viewDetails:'عرض التفاصيل والمحتويات',previous:'السابق',next:'التالي',
 items:'منتجات',item:'منتج',noImage:'لا توجد صورة',light:'فاتح',dark:'داكن',email:'البريد الإلكتروني',password:'كلمة المرور',username:'اسم المستخدم',
 firstName:'الاسم الأول',lastName:'اسم العائلة',mobile:'رقم الهاتف المتحرك',deliveryAddress:'عنوان التوصيل',newPassword:'كلمة مرور جديدة (اتركها فارغة للإبقاء على الحالية)',
 saveChanges:'حفظ التغييرات',shoppingCart:'سلة التسوق',price:'السعر',quantity:'الكمية',subtotal:'المجموع الفرعي',action:'الإجراء',remove:'إزالة',

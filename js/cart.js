@@ -200,6 +200,60 @@ window.Cart = {
     const ar = Store.state.lang === 'ar';
     if (!Store.state.user) return Store.go('login');
 
+    if (Store.state.settings?.require_verified_email_for_checkout === true) {
+      try {
+        const status = await Auth.emailVerificationStatus();
+        if (!status?.verified) {
+          Store.view(`
+            <button id="verify-back-cart" class="btn secondary">← ${t('backCart')}</button>
+            <div class="panel">
+              <h2>${ar ? 'تأكيد البريد الإلكتروني مطلوب' : 'Email Verification Required'}</h2>
+              <p>${ar
+                ? 'يجب تأكيد البريد الإلكتروني المرتبط بحسابك قبل إكمال الدفع أو إرسال الطلب.'
+                : 'The email address linked to your account must be verified before you can complete checkout or submit an order.'}</p>
+              <p class="muted">${Store.esc(Store.state.user.email || '')}</p>
+              <div class="inline-actions">
+                <button id="checkout-send-verification" class="btn primary">${ar ? 'إرسال رسالة التأكيد' : 'Send Verification Email'}</button>
+                <button id="checkout-manage-account" class="btn secondary">${ar ? 'إدارة الحساب' : 'Manage Account'}</button>
+              </div>
+              <div id="checkout-verification-note"></div>
+            </div>
+          `);
+
+          document.getElementById('verify-back-cart').onclick = () => Store.go('cart');
+          document.getElementById('checkout-manage-account').onclick = () => Store.go('account');
+          document.getElementById('checkout-send-verification').onclick = async event => {
+            const button = event.currentTarget;
+            const note = document.getElementById('checkout-verification-note');
+            try {
+              Store.setBusy(button,true,ar ? 'جارٍ الإرسال…' : 'Sending…');
+              const result = await Auth.requestCurrentEmailVerification();
+              note.innerHTML = `<div class="alert ${result?.rate_limited ? 'err' : 'ok'}">${Store.esc(
+                result?.rate_limited
+                  ? result.message
+                  : (ar ? 'تم إرسال رسالة تأكيد البريد الإلكتروني.' : 'Verification email sent.')
+              )}</div>`;
+            } catch (error) {
+              note.innerHTML = `<div class="alert err">${Store.esc(ar ? 'تعذر إرسال رسالة التأكيد حالياً.' : (error.message || 'Verification email could not be sent.'))}</div>`;
+            } finally {
+              Store.setBusy(button,false);
+            }
+          };
+          return;
+        }
+      } catch (error) {
+        console.error('Email verification status check failed:', error);
+        Store.view(`
+          <div class="alert err">${ar
+            ? 'تعذر التحقق من حالة البريد الإلكتروني حالياً. يرجى المحاولة مرة أخرى.'
+            : 'Your email verification status could not be checked right now. Please try again.'}</div>
+          <button id="verify-back-cart" class="btn secondary">${t('backCart')}</button>
+        `);
+        document.getElementById('verify-back-cart').onclick = () => Store.go('cart');
+        return;
+      }
+    }
+
     await this.ensureProducts();
     const rows = this.rows();
     if (!rows.length) return this.render();

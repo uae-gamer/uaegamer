@@ -2,6 +2,7 @@ window.ProductPage = {
   product: null,
   images: [],
   imageIndex: 0,
+  includedSearch: '',
 
   price(p) {
     const normal = Number(p.price_usd || 0);
@@ -156,17 +157,22 @@ window.ProductPage = {
     }
   },
 
-  async loadIncluded(page=1) {
+  async loadIncluded(page=1, search=this.includedSearch) {
     const per = 25;
+    const term = String(search || '').trim();
+    this.includedSearch = term;
     const from = (page-1)*per;
     const to = from+per-1;
 
-    const {data,error,count} = await db.from('included_content')
+    let query = db.from('included_content')
       .select('id,name,sort_order', {count:'exact'})
       .eq('product_id',this.product.id)
       .order('sort_order')
       .range(from,to);
 
+    if (term) query = query.ilike('name',`%${term}%`);
+
+    const {data,error,count} = await query;
     if (error) {
       document.getElementById('detail-included-body').innerHTML = `<div class="alert err">${PublicSite.esc(error.message)}</div>`;
       return;
@@ -177,20 +183,49 @@ window.ProductPage = {
 
     const total = Number(count||0);
     const pages = Math.max(1,Math.ceil(total/per));
+    if (page > pages) return this.loadIncluded(pages,term);
+    const ar = PublicSite.state.lang === 'ar';
 
     document.getElementById('detail-included-body').innerHTML = `
-      <p class="muted">${total.toLocaleString()} ${PublicSite.ui('entries','عنصر')}</p>
+      <div class="form-group">
+        <input id="detail-content-search" type="search"
+               placeholder="${ar ? 'ابحث في المحتويات المشمولة…' : 'Search Included Content…'}"
+               value="${PublicSite.escAttr(term)}">
+      </div>
+      <p class="muted">${total.toLocaleString()} ${PublicSite.ui('entries','عنصر')}${term ? ` — ${PublicSite.ui('matching','مطابق')} “${PublicSite.esc(term)}”` : ''}</p>
       ${total ? `<ul class="included-list">${(data||[]).map(x => `<li>${PublicSite.esc(x.name||'')}</li>`).join('')}</ul>`
-              : `<div class="card">${PublicSite.ui('No Included Content has been added.','لم تتم إضافة محتويات مشمولة.')}</div>`}
+              : `<div class="card">${PublicSite.ui('No matching Included Content found.','لم يتم العثور على محتوى مطابق.')}</div>`}
       ${pages > 1 ? `<div class="pagination">
-        ${page>1 ? `<button class="mini detail-content-page" data-p="${page-1}">${PublicSite.ui('Previous','السابق')}</button>` : ''}
+        <button class="mini detail-content-page" data-p="${page-1}" ${page<=1?'disabled':''}>${PublicSite.ui('Previous','السابق')}</button>
         <span class="mini active">${PublicSite.ui('Page','الصفحة')} ${page} ${PublicSite.ui('of','من')} ${pages}</span>
-        ${page<pages ? `<button class="mini detail-content-page" data-p="${page+1}">${PublicSite.ui('Next','التالي')}</button>` : ''}
+        <button class="mini detail-content-page" data-p="${page+1}" ${page>=pages?'disabled':''}>${PublicSite.ui('Next','التالي')}</button>
+      </div>
+      <div class="inline-actions" style="justify-content:center;margin-top:10px">
+        <label>${PublicSite.ui('Go to page:','الانتقال إلى الصفحة:')}
+          <input id="detail-content-page-input" type="number" min="1" max="${pages}" value="${page}" style="width:90px">
+        </label>
+        <button id="detail-content-page-go" class="btn secondary">${PublicSite.ui('Go','انتقال')}</button>
       </div>` : ''}
     `;
 
+    let timer;
+    document.getElementById('detail-content-search')?.addEventListener('input',event => {
+      clearTimeout(timer);
+      const value = event.target.value.trim();
+      timer = setTimeout(() => this.loadIncluded(1,value),300);
+    });
+
     document.querySelectorAll('.detail-content-page').forEach(b => {
-      b.onclick = () => this.loadIncluded(Number(b.dataset.p));
+      b.onclick = () => {
+        if (b.disabled) return;
+        this.loadIncluded(Number(b.dataset.p),term);
+      };
+    });
+
+    document.getElementById('detail-content-page-go')?.addEventListener('click',() => {
+      const input = document.getElementById('detail-content-page-input');
+      const target = Math.max(1,Math.min(pages,Number(input?.value || 1)));
+      this.loadIncluded(target,term);
     });
     section.scrollIntoView({behavior:'smooth',block:'start'});
   },

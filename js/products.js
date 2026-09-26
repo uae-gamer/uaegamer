@@ -491,26 +491,30 @@ window.Products = {
     });
   },
 
-  async showIncluded(productId, page = 1) {
+  async showIncluded(productId, page = 1, search = '') {
     const product = (Store.state.products || []).find(x => x.id === productId);
     if (!product) return;
 
     const per = 25;
+    const term = String(search || '').trim();
     const from = (page - 1) * per;
     const to = from + per - 1;
 
     Store.modal(`
       <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
-      <div class="card" style="text-align:center">Loading Included Content…</div>
+      <div class="card" style="text-align:center">${Store.state.lang === 'ar' ? 'جارٍ تحميل المحتويات…' : 'Loading Included Content…'}</div>
     `);
 
-    const { data, error, count } = await db
+    let query = db
       .from('included_content')
-      .select('id,name,sort_order', { count: 'exact' })
+      .select('id,name,sort_order', { count:'exact' })
       .eq('product_id', productId)
-      .order('sort_order', { ascending: true })
+      .order('sort_order', { ascending:true })
       .range(from, to);
 
+    if (term) query = query.ilike('name', `%${term}%`);
+
+    const { data, error, count } = await query;
     if (error) {
       Store.modal(`<div class="alert err">${Store.esc(error.message)}</div>`);
       return;
@@ -518,23 +522,56 @@ window.Products = {
 
     const total = Number(count || 0);
     const pages = Math.max(1, Math.ceil(total / per));
+    if (page > pages) return this.showIncluded(productId, pages, term);
+    const ar = Store.state.lang === 'ar';
 
     Store.modal(`
       <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
       <h3 style="text-align:center">${t('included')} (${total.toLocaleString()})</h3>
+
+      <div class="form-group">
+        <input id="public-included-search" type="search"
+               placeholder="${ar ? 'ابحث في المحتويات المشمولة…' : 'Search Included Content…'}"
+               value="${Store.escAttr(term)}">
+      </div>
+
+      ${term ? `<div class="muted" style="text-align:center;margin-bottom:10px">${ar ? 'نتائج البحث عن' : 'Search results for'} “${Store.esc(term)}”</div>` : ''}
+
       ${total
         ? `<ul class="included-list">${(data || []).map(x => `<li>${Store.esc(x.name || '')}</li>`).join('')}</ul>`
-        : `<div class="card" style="text-align:center">No Included Content</div>`}
+        : `<div class="card" style="text-align:center">${ar ? 'لم يتم العثور على محتوى مطابق.' : 'No matching Included Content found.'}</div>`}
+
       ${pages > 1 ? `
         <div class="pagination">
-          ${page > 1 ? `<button class="mini included-page" data-p="${page-1}">${t('previous')}</button>` : ''}
-          <span class="mini active">Page ${page} of ${pages}</span>
-          ${page < pages ? `<button class="mini included-page" data-p="${page+1}">${t('next')}</button>` : ''}
+          <button class="mini included-page" data-p="${page-1}" ${page<=1?'disabled':''}>${t('previous')}</button>
+          <span class="mini active">${ar ? 'الصفحة' : 'Page'} ${page} ${ar ? 'من' : 'of'} ${pages}</span>
+          <button class="mini included-page" data-p="${page+1}" ${page>=pages?'disabled':''}>${t('next')}</button>
+        </div>
+        <div class="inline-actions" style="justify-content:center;margin-top:10px">
+          <label>${ar ? 'الانتقال إلى الصفحة:' : 'Go to page:'}
+            <input id="public-included-page" type="number" min="1" max="${pages}" value="${page}" style="width:90px">
+          </label>
+          <button id="public-included-go" class="btn secondary">${ar ? 'انتقال' : 'Go'}</button>
         </div>` : ''}
     `);
 
-    document.querySelectorAll('.included-page').forEach(btn => {
-      btn.onclick = () => this.showIncluded(productId, Number(btn.dataset.p));
+    let timer;
+    document.getElementById('public-included-search')?.addEventListener('input', event => {
+      clearTimeout(timer);
+      const value = event.target.value.trim();
+      timer = setTimeout(() => this.showIncluded(productId, 1, value), 300);
     });
-  }
-};
+
+    document.querySelectorAll('.included-page').forEach(btn => {
+      btn.onclick = () => {
+        if (btn.disabled) return;
+        this.showIncluded(productId, Number(btn.dataset.p), term);
+      };
+    });
+
+    document.getElementById('public-included-go')?.addEventListener('click', () => {
+      const input = document.getElementById('public-included-page');
+      const target = Math.max(1, Math.min(pages, Number(input?.value || 1)));
+      this.showIncluded(productId, target, term);
+    });
+  }};

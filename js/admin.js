@@ -1655,14 +1655,26 @@ window.Admin = {
     if (page > pages) return this.users(pages);
 
     let profiles = [];
+    let usernameHistory = [];
     if (ids.length) {
-      const profileResponse = await db.from('profiles').select('*').in('id',ids);
+      const [profileResponse,historyResponse] = await Promise.all([
+        db.from('profiles').select('*').in('id',ids),
+        db.from('username_history').select('*').in('user_id',ids).order('changed_at',{ascending:false})
+      ]);
       if (profileResponse.error) return this.err(profileResponse.error);
+      if (historyResponse.error) return this.err(historyResponse.error);
 
       const profileById = new Map((profileResponse.data || []).map(profile => [profile.id,profile]));
       profiles = ids.map(id => profileById.get(id)).filter(Boolean);
+      usernameHistory = historyResponse.data || [];
     }
 
+    const historyByUser = new Map();
+    usernameHistory.forEach(row => {
+      const list = historyByUser.get(row.user_id) || [];
+      list.push(row);
+      historyByUser.set(row.user_id,list);
+    });
     const authById = new Map(authUsers.map(u => [u.id,u]));
 
     body.innerHTML = `
@@ -1677,7 +1689,7 @@ window.Admin = {
         <table>
           <thead>
             <tr>
-              <th>Username</th><th>Email</th><th>Name</th><th>Mobile</th><th>Role</th>
+              <th>Username</th><th>Username History</th><th>Email</th><th>Name</th><th>Mobile</th><th>Role</th>
               <th>Auth Status</th><th>Last Sign In</th><th>Action</th>
             </tr>
           </thead>
@@ -1689,6 +1701,7 @@ window.Admin = {
               return `
                 <tr>
                   <td>${Store.esc(u.username||'')}</td>
+                  <td><button class="btn secondary username-history" data-id="${u.id}">History (${(historyByUser.get(u.id)||[]).length})</button></td>
                   <td>${Store.esc(auth?.email||'Unavailable')}</td>
                   <td>${Store.esc(`${u.first_name||''} ${u.last_name||''}`.trim())}</td>
                   <td>${Store.esc(u.mobile_number||'')}</td>
@@ -1698,7 +1711,7 @@ window.Admin = {
                   <td><button class="btn edit-user" data-id="${u.id}">Manage User</button></td>
                 </tr>
               `;
-            }).join('') || '<tr><td colspan="8">No registered users found on this page.</td></tr>'}
+            }).join('') || '<tr><td colspan="9">No registered users found on this page.</td></tr>'}
           </tbody>
         </table>
       </div>
@@ -1710,6 +1723,28 @@ window.Admin = {
 
     body.querySelector('.page-prev')?.addEventListener('click', () => this.users(page-1));
     body.querySelector('.page-next')?.addEventListener('click', () => this.users(page+1));
+
+    document.querySelectorAll('.username-history').forEach(btn => {
+      btn.onclick = () => {
+        const profile = profiles.find(x => x.id === btn.dataset.id);
+        const history = historyByUser.get(btn.dataset.id) || [];
+        Store.modal(`
+          <h2>Username History — ${Store.esc(profile?.username || '')}</h2>
+          ${history.length ? `
+            <div class="table-wrap"><table>
+              <thead><tr><th>Date</th><th>Previous Username</th><th>New Username</th><th>Changed By</th></tr></thead>
+              <tbody>${history.map(row => `
+                <tr>
+                  <td>${row.changed_at ? new Date(row.changed_at).toLocaleString() : ''}</td>
+                  <td>${Store.esc(row.old_username || '—')}</td>
+                  <td>${Store.esc(row.new_username || '')}</td>
+                  <td>${row.changed_by ? (row.changed_by === row.user_id ? 'User / Self' : 'Administrator') : 'Baseline'}</td>
+                </tr>`).join('')}</tbody>
+            </table></div>
+          ` : '<div class="card">No username history is available.</div>'}
+        `);
+      };
+    });
 
     document.querySelectorAll('.edit-user').forEach(btn => {
       const profile = profiles.find(x => x.id === btn.dataset.id);
@@ -2756,6 +2791,27 @@ window.Admin = {
           Remove Current Favicon
         </label>
 
+        <h3>Email Verification Requirements</h3>
+        <p class="muted">
+          These controls let you decide when UAEGamer should require/send verification emails. Verification emails use your configured Resend service.
+        </p>
+
+        <label class="check-line">
+          <input type="checkbox" name="require_verified_email_for_checkout" style="width:auto" ${data.require_verified_email_for_checkout?'checked':''}>
+          Require a verified email address before checkout/purchase
+        </label>
+        <small class="muted">When enabled, new registrations receive one verification message and unverified users are blocked before both manual and automatic PayPal checkout.</small>
+
+        <label class="check-line" style="margin-top:10px">
+          <input type="checkbox" name="require_verification_for_email_change" style="width:auto" ${data.require_verification_for_email_change?'checked':''}>
+          Require verification before changing a user's login email
+        </label>
+        <small class="muted">When enabled, the new email is not applied until its verification link is opened. When disabled, the email changes immediately without sending a verification email.</small>
+
+        <div class="alert" style="margin-top:10px">
+          Verification requests are rate-limited to one email every 10 minutes and a maximum of 5 per account/purpose per 24 hours to protect your Resend quota.
+        </div>
+
         <h3>Transactional Email</h3>
         <p class="muted">
           Resend API credentials are stored only in Supabase Edge Function Secrets, never here.
@@ -3094,6 +3150,8 @@ window.Admin = {
       payload.send_order_customer_emails = fd.has('send_order_customer_emails');
       payload.send_admin_new_order_email = fd.has('send_admin_new_order_email');
       payload.paypal_card_payments_enabled = fd.has('paypal_card_payments_enabled');
+      payload.require_verified_email_for_checkout = fd.has('require_verified_email_for_checkout');
+      payload.require_verification_for_email_change = fd.has('require_verification_for_email_change');
 
       const faviconFile = fd.get('favicon_upload');
       const removeFavicon = fd.has('remove_favicon');

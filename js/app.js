@@ -783,8 +783,38 @@ window.Store = {
       event.preventDefault();
 
       try {
-        await Auth.register(new FormData(event.currentTarget));
-        this.alert(this.state.lang === 'ar' ? 'تم إرسال التسجيل. تحقق من بريدك الإلكتروني إذا كان تأكيد البريد مفعلاً.' : 'Registration submitted. Check your email if confirmation is enabled.');
+        const registration = await Auth.register(new FormData(event.currentTarget));
+        const user = registration?.user || null;
+        let verificationMessage = '';
+
+        if (user && this.state.settings?.require_verified_email_for_checkout === true) {
+          try {
+            const result = await db.functions.invoke('email-verification', {
+              body: {
+                action:'request_registration',
+                user_id:user.id,
+                email:user.email,
+                // When Supabase project-level Confirm Email is enabled, Supabase has already
+                // sent its own confirmation message. Avoid a second Resend email and let the
+                // first successful login synchronize that confirmation into UAEGamer.
+                supabase_confirmation_pending: !registration?.session
+              }
+            });
+            if (result.error) throw result.error;
+            verificationMessage = result.data?.external_confirmation
+              ? (this.state.lang === 'ar' ? ' تم إرسال تأكيد البريد بواسطة نظام المصادقة.' : ' Email confirmation is being handled by the authentication service.')
+              : result.data?.sent
+                ? (this.state.lang === 'ar' ? ' تم إرسال رسالة تأكيد البريد الإلكتروني.' : ' A verification email has been sent.')
+                : '';
+          } catch (verifyError) {
+            console.error('Registration verification email failed:', verifyError);
+            verificationMessage = this.state.lang === 'ar'
+              ? ' يمكنك تسجيل الدخول وطلب رسالة التأكيد لاحقاً من صفحة الحساب.'
+              : ' You can log in and request a verification email later from Manage Account.';
+          }
+        }
+
+        this.alert((this.state.lang === 'ar' ? 'تم إنشاء الحساب.' : 'Registration completed.') + verificationMessage);
         location.hash = 'login';
         await this.route();
       } catch (e) {
@@ -793,13 +823,25 @@ window.Store = {
     });
   },
 
-  accountView() {
+  async accountView() {
     if (!this.state.user) {
       this.go('login');
       return;
     }
 
     const p = this.state.profile || {};
+    const ar = this.state.lang === 'ar';
+    const settings = this.state.settings || {};
+    let verification = { verified:false, email:this.state.user.email || '' };
+
+    try {
+      verification = await Auth.emailVerificationStatus();
+    } catch (error) {
+      console.error('Email verification status failed:', error);
+    }
+
+    const emailChangeRequiresVerification = settings.require_verification_for_email_change === true;
+    const checkoutRequiresVerification = settings.require_verified_email_for_checkout === true;
 
     this.view(`
       <form id="account-form" class="panel">
@@ -809,12 +851,31 @@ window.Store = {
           <div class="form-group">
             <label>${t('username')}</label>
             <input name="username" value="${this.escAttr(p.username || '')}" required>
+            <small class="muted">${ar ? 'يمكنك تغيير اسم المستخدم. تحتفظ الإدارة بسجل تغييرات أسماء المستخدمين.' : 'You can change your username. Administrators retain a username-change history.'}</small>
           </div>
 
           <div class="form-group">
             <label>${t('email')}</label>
-            <input value="${this.escAttr(this.state.user.email || '')}" disabled>
+            <input name="email" type="email" value="${this.escAttr(this.state.user.email || '')}" required autocomplete="email">
+            <small class="muted">
+              ${emailChangeRequiresVerification
+                ? (ar ? 'يتطلب تغيير البريد الإلكتروني تأكيد العنوان الجديد قبل تطبيق التغيير.' : 'Changing your email requires verification of the new address before the change is applied.')
+                : (ar ? 'سيتم تطبيق تغيير البريد الإلكتروني مباشرةً دون إرسال رسالة تأكيد.' : 'Email changes are applied immediately without sending a verification email.')}
+            </small>
           </div>
+        </div>
+
+        <div class="card">
+          <strong>${ar ? 'حالة تأكيد البريد الإلكتروني:' : 'Email verification status:'}</strong>
+          ${verification.verified
+            ? `<span class="status-confirmed">${ar ? ' مؤكد' : ' Verified'}</span>`
+            : `<span class="status-pending">${ar ? ' غير مؤكد' : ' Not verified'}</span>`}
+          ${checkoutRequiresVerification && !verification.verified ? `
+            <div class="muted" style="margin-top:8px">${ar ? 'يجب تأكيد البريد الإلكتروني قبل إكمال أي عملية شراء.' : 'Your email must be verified before you can complete a purchase.'}</div>
+            <button type="button" id="account-send-verification" class="btn secondary" style="margin-top:8px">
+              ${ar ? 'إرسال رسالة التأكيد' : 'Send Verification Email'}
+            </button>
+          ` : ''}
         </div>
 
         <div class="bilingual">
@@ -848,15 +909,53 @@ window.Store = {
       </form>
     `);
 
+    document.getElementById('account-send-verification')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+      try {
+        this.setBusy(button, true, ar ? 'جارٍ الإرسال…' : 'Sending…');
+        const result = await Auth.requestCurrentEmailVerification();
+        const message = result?.rate_limited
+          ? result.message
+          : (ar ? 'تم إرسال رسالة تأكيد البريد الإلكتروني.' : 'Verification email sent.');
+        this.alert(message, result?.rate_limited ? 'err' : 'ok');
+      } catch (error) {
+        this.alert(ar ? 'تعذر إرسال رسالة التأكيد حالياً.' : (error.message || 'Verification email could not be sent.'), 'err');
+      } finally {
+        this.setBusy(button, false);
+      }
+    });
+
     document.getElementById('account-form')?.addEventListener('submit', async event => {
       event.preventDefault();
+      const form = event.currentTarget;
+      const fd = new FormData(form);
+      const requestedEmail = String(fd.get('email') || '').trim().toLowerCase();
+      const currentEmail = String(this.state.user.email || '').trim().toLowerCase();
 
       try {
-        await Auth.updateProfile(new FormData(event.currentTarget));
-        this.alert(this.state.lang === 'ar' ? 'تم تحديث الحساب.' : 'Account updated.');
+        let emailResult = null;
+        if (requestedEmail && requestedEmail !== currentEmail) {
+          emailResult = await Auth.changeEmail(requestedEmail);
+        }
+
+        await Auth.updateProfile(fd);
+        await Auth.refresh();
+        await this.accountView();
         this.renderNav();
+
+        if (emailResult?.pending) {
+          this.alert(ar
+            ? 'تم حفظ تغييرات الحساب. تم إرسال رسالة إلى البريد الإلكتروني الجديد؛ لن يتغير بريد تسجيل الدخول حتى يتم تأكيده.'
+            : 'Account changes saved. A verification email was sent to the new address; your login email will change after it is verified.');
+        } else if (emailResult?.changed) {
+          this.alert(ar
+            ? 'تم تحديث الحساب والبريد الإلكتروني. قد تحتاج إلى تأكيد البريد قبل الشراء إذا كان هذا الشرط مفعلاً.'
+            : 'Account and email updated. You may still need to verify the new email before purchasing if that requirement is enabled.');
+        } else {
+          this.alert(ar ? 'تم تحديث الحساب.' : 'Account updated.');
+        }
       } catch (e) {
-        this.alert(this.state.lang === 'ar' ? 'تعذر إكمال العملية. تحقق من البيانات وحاول مرة أخرى.' : (e.message || String(e)), 'err');
+        this.alert(ar ? 'تعذر إكمال العملية. تحقق من البيانات وحاول مرة أخرى.' : (e.message || String(e)), 'err');
       }
     });
   },
@@ -1469,6 +1568,42 @@ window.Store = {
     return true;
   },
 
+  async handleEmailVerificationReturn() {
+    const params = new URLSearchParams(location.search);
+    const token = params.get('verify_email');
+    if (!token) return false;
+
+    const ar = this.state.lang === 'ar';
+    try {
+      const {data,error} = await db.functions.invoke('email-verification', {
+        body:{action:'verify',token}
+      });
+      if (error) {
+        let message = error.message || 'Verification failed.';
+        try { if (error.context?.json) { const body = await error.context.json(); if (body?.error) message = body.error; } } catch (_) {}
+        throw new Error(message);
+      }
+      if (data?.error) throw new Error(data.error);
+
+      try {
+        sessionStorage.setItem('sf_flash', ar
+          ? 'تم تأكيد البريد الإلكتروني بنجاح.'
+          : 'Your email address has been verified successfully.');
+      } catch (_) {}
+    } catch (error) {
+      try {
+        sessionStorage.setItem('sf_flash', ar
+          ? 'تعذر تأكيد البريد الإلكتروني. قد يكون الرابط منتهياً أو مستخدماً مسبقاً.'
+          : (error.message || 'The verification link is invalid, expired, or already used.'));
+      } catch (_) {}
+    }
+
+    params.delete('verify_email');
+    const query = params.toString();
+    history.replaceState({},'',`${location.pathname}${query ? `?${query}` : ''}${location.hash || '#account'}`);
+    return true;
+  },
+
   async start() {
     document.getElementById('year').textContent = new Date().getFullYear();
     const powered = document.getElementById('powered-by');
@@ -1498,6 +1633,7 @@ window.Store = {
     try {
       await this.loadSettings();
       this.applySettings();
+      await this.handleEmailVerificationReturn();
 
       // Reveal the shell as soon as the true appearance has been applied.
       document.documentElement.classList.add('app-ready');
