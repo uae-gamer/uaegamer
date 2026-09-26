@@ -474,6 +474,12 @@ window.Admin = {
           <button class="btn success">Add Included Content</button>
         </form>
 
+        <div class="inline-actions" style="margin-bottom:12px">
+          <button id="remove-all-included-content" type="button" class="btn danger">
+            Remove All Included Content
+          </button>
+        </div>
+
         <div class="included-import-box">
           <h4>Bulk Import from CSV</h4>
           <p class="muted">
@@ -639,6 +645,45 @@ window.Admin = {
         await Products.load();
         await this.manageProduct(productId);
       };
+    });
+
+    document.getElementById('remove-all-included-content')?.addEventListener('click', async event => {
+      const button = event.currentTarget;
+
+      const countResult = await db.from('included_content')
+        .select('id', { count:'exact', head:true })
+        .eq('product_id', productId);
+
+      if (countResult.error) return this.err(countResult.error);
+
+      const total = Number(countResult.count || 0);
+
+      if (!total) {
+        Store.alert('This item has no Included Content to remove.');
+        return;
+      }
+
+      const confirmed = confirm(
+        `Remove ALL ${total.toLocaleString()} Included Content entr${total === 1 ? 'y' : 'ies'} from "${product.title}"?\n\n` +
+        'This affects the entire item, including entries not visible on the current page or current search. This action cannot be undone.'
+      );
+
+      if (!confirmed) return;
+
+      Store.setBusy(button, true, 'Removing…');
+
+      const result = await db.from('included_content')
+        .delete()
+        .eq('product_id', productId);
+
+      Store.setBusy(button, false);
+
+      if (result.error) return this.err(result.error);
+
+      includedPage = 1;
+      includedSearch = '';
+      Store.alert(`Removed all ${total.toLocaleString()} Included Content entr${total === 1 ? 'y' : 'ies'}.`);
+      await renderIncluded();
     });
 
     document.getElementById('content-form').onsubmit = async event => {
@@ -916,6 +961,7 @@ window.Admin = {
 
     const rows = data || [];
     const host = document.getElementById('admin-body');
+    const editable = table === 'categories' || table === 'product_types';
 
     host.innerHTML = `
       <h2>Manage ${title} (${rows.length})</h2>
@@ -950,10 +996,25 @@ window.Admin = {
           <tbody>
             ${rows.map(x => `
               <tr>
-                <td>${Store.esc(x[nameKey]||'')}</td>
-                <td dir="rtl">${Store.esc(x[arKey]||'')}</td>
-                <td>${Number(x.sort_order||0)}</td>
-                <td><button class="btn danger simple-del" data-id="${x.id}">Delete</button></td>
+                <td>
+                  ${editable
+                    ? `<input class="simple-name" data-id="${x.id}" value="${Store.escAttr(x[nameKey]||'')}">`
+                    : Store.esc(x[nameKey]||'')}
+                </td>
+                <td dir="rtl">
+                  ${editable
+                    ? `<input class="simple-name-ar" data-id="${x.id}" dir="rtl" value="${Store.escAttr(x[arKey]||'')}">`
+                    : Store.esc(x[arKey]||'')}
+                </td>
+                <td>
+                  ${editable
+                    ? `<input class="simple-order" data-id="${x.id}" type="number" value="${Number(x.sort_order||0)}">`
+                    : Number(x.sort_order||0)}
+                </td>
+                <td>
+                  ${editable ? `<button class="btn simple-save" data-id="${x.id}">Save</button>` : ''}
+                  <button class="btn danger simple-del" data-id="${x.id}">Delete</button>
+                </td>
               </tr>
             `).join('')}
           </tbody>
@@ -978,6 +1039,36 @@ window.Admin = {
       Store.alert(`${title} entry added.`);
       await this.simpleTable(table,title,nameKey,arKey);
     };
+
+    document.querySelectorAll('.simple-save').forEach(btn => {
+      btn.onclick = async () => {
+        const id = btn.dataset.id;
+        const nameField = document.querySelector(`.simple-name[data-id="${CSS.escape(id)}"]`);
+        const arField = document.querySelector(`.simple-name-ar[data-id="${CSS.escape(id)}"]`);
+        const orderField = document.querySelector(`.simple-order[data-id="${CSS.escape(id)}"]`);
+
+        const name = String(nameField?.value || '').trim();
+        if (!name) return this.err(new Error('English name is required.'));
+
+        Store.setBusy(btn, true, 'Saving…');
+
+        const result = await db.from(table)
+          .update({
+            [nameKey]: name,
+            [arKey]: String(arField?.value || '').trim() || null,
+            sort_order: Number(orderField?.value || 0)
+          })
+          .eq('id', id);
+
+        Store.setBusy(btn, false);
+
+        if (result.error) return this.err(result.error);
+
+        await Products.load();
+        Store.alert(`${title} entry updated.`);
+        await this.simpleTable(table,title,nameKey,arKey);
+      };
+    });
 
     document.querySelectorAll('.simple-del').forEach(btn => {
       btn.onclick = async () => {
