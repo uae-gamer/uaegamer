@@ -1,3 +1,3 @@
-# UAEGamer Step 37.3
+# UAEGamer Step 37.4
 
-Performance/scalability release applying the eight approved recommendations from the Step 37.2 audit. See `STEP37-3-DEPLOY.md`.
+Adds safe admin listed-item duplication. See `STEP37-4-DEPLOY.md`.
