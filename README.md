@@ -1,3 +1,5 @@
-# UAEGamer Step 37.4
+# UAEGamer Step 37.5
 
-Adds safe admin listed-item duplication. See `STEP37-4-DEPLOY.md`.
+Adds configurable email verification, editable customer login email, Admin username history, the requested Arabic product-details label, and customer Included Content search/page-jump navigation. Receipt behavior is unchanged.
+
+See `STEP37-5-DEPLOY.md` before deployment.
