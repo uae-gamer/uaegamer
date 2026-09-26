@@ -1,3 +1,3 @@
-# UAEGamer Step 37.1
+# UAEGamer Step 37.3
 
-Maintenance update: default first-visit language, standalone-page font propagation fix, and admin-only PayPal card eligibility diagnostic. See `STEP37-1-DEPLOY.md`.
+Performance/scalability release applying the eight approved recommendations from the Step 37.2 audit. See `STEP37-3-DEPLOY.md`.
