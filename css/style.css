@@ -912,6 +912,56 @@ html.retro-controller-theme .receipt-box .receipt-grand-total{
 
 
 /* Step 37.7 — Admin settings subpages */
+/* Step 37.8 — responsive full-width header home button. */
+.brand .header-home-button{
+  display:flex;
+  width:100%;
+  aspect-ratio:8 / 1;
+  min-height:88px;
+  align-items:center;
+  justify-content:center;
+  padding:12px 28px;
+  overflow-wrap:anywhere;
+  line-height:1.2;
+  font-family:var(--header-font)!important;
+  font-size:clamp(1.1rem,4vw,var(--header-button-font-size,2.5rem));
+  box-sizing:border-box;
+}
+.brand .header-home-button:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
+@media(max-width:600px){
+  .brand .header-home-button{aspect-ratio:4 / 1;min-height:76px;padding:10px 16px}
+}
+
+/* Controller-shaped catalog labels preserve green, red, amber and yellow meanings. */
+html.retro-controller-theme .product-badges .product-pill{
+  border-radius:5px;
+  border-width:2px;
+  padding:5px 9px;
+  font-weight:800;
+  box-shadow:0 3px 0 rgba(41,42,44,.35);
+}
+html.retro-controller-theme .product-badges .status-pill.in{
+  background:#d9f3dc;color:#155c2d;border-color:#257f43;
+}
+html.retro-controller-theme .product-badges .status-pill.out{
+  background:#ffe1e0;color:#9b2529;border-color:#c4393f;
+}
+html.retro-controller-theme .product-badges .status-pill.coming{
+  background:#fff0ce;color:#805010;border-color:#b77c23;
+}
+html.retro-controller-theme .product-badges .discount-pill{
+  background:#facc15;color:#292a2c;border-color:#a77d0a;
+}
+html.retro-controller-theme .header-home-button.btn.primary{
+  border-width:2px;
+  border-radius:10px;
+  box-shadow:0 5px 0 var(--retro-plum-dark),0 9px 16px rgba(41,42,44,.16);
+}
+html.retro-controller-theme .header-home-button.btn.primary:active{
+  transform:translateY(3px);
+  box-shadow:0 2px 0 var(--retro-plum-dark);
+}
+
 .settings-subnav{
   display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 14px;
   padding:10px;background:var(--card);border:1px solid var(--border);
