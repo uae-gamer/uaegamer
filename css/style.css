@@ -921,12 +921,14 @@ html.retro-controller-theme .receipt-box .receipt-grand-total{
   align-items:center;
   justify-content:center;
   padding:12px 28px;
-  overflow-wrap:anywhere;
+  overflow:hidden;
+  white-space:nowrap;
   line-height:1.2;
   font-family:var(--header-font)!important;
   font-size:clamp(1.1rem,4vw,var(--header-button-font-size,2.5rem));
   box-sizing:border-box;
 }
+.header-home-button-label{display:inline-block;white-space:nowrap;line-height:1.1;max-width:none}
 .brand .header-home-button:focus-visible{outline:3px solid var(--primary);outline-offset:3px}
 @media(max-width:600px){
   .brand .header-home-button{aspect-ratio:4 / 1;min-height:76px;padding:10px 16px}
@@ -953,9 +955,18 @@ html.retro-controller-theme .product-badges .discount-pill{
   background:#facc15;color:#292a2c;border-color:#a77d0a;
 }
 html.retro-controller-theme .header-home-button.btn.primary{
+  background:var(--retro-cream-light);
+  color:var(--retro-charcoal);
+  border-color:var(--retro-charcoal);
   border-width:2px;
   border-radius:10px;
-  box-shadow:0 5px 0 var(--retro-plum-dark),0 9px 16px rgba(41,42,44,.16);
+  box-shadow:0 5px 0 var(--retro-charcoal-soft),0 9px 16px rgba(41,42,44,.16);
+}
+html.retro-controller-theme .header-home-button.btn.primary:hover,
+html.retro-controller-theme .header-home-button.btn.primary:active{
+  background:var(--retro-plum);
+  color:#fff;
+  border-color:var(--retro-plum-dark);
 }
 html.retro-controller-theme .header-home-button.btn.primary:active{
   transform:translateY(3px);
