@@ -2470,12 +2470,20 @@ window.Admin = {
               <option value="text" ${data.header_type==='text'?'selected':''}>Text Title</option>
               <option value="image" ${data.header_type==='image'?'selected':''}>Logo Image URL</option>
               <option value="gradient" ${data.header_type==='gradient'?'selected':''}>Animated Gradient Text</option>
+              <option value="button" ${data.header_type==='button'?'selected':''}>Large Home Button</option>
             </select>
           </div>
           <div class="form-group">
             <label>Logo Image URL</label>
             <input name="logo_url" type="url" value="${Store.escAttr(data.logo_url||'')}">
           </div>
+        </div>
+
+        <div class="bilingual">
+          <div class="form-group"><label>Home Button Text - English (optional)</label>
+            <input name="header_button_text" maxlength="120" value="${Store.escAttr(data.header_button_text||'')}" placeholder="Uses English site name when empty"></div>
+          <div class="form-group"><label>Home Button Text - Arabic (optional)</label>
+            <input name="header_button_text_ar" dir="rtl" maxlength="120" value="${Store.escAttr(data.header_button_text_ar||'')}" placeholder="Uses Arabic site name when empty"></div>
         </div>
 
         <div class="bilingual">
@@ -2891,7 +2899,7 @@ window.Admin = {
     const settingsSectionKeys = {
       general: new Set(['site_name','site_name_ar','site_description','site_description_ar','default_language']),
       branding: new Set([
-        'header_type','logo_url','theme_color','theme_mode','retro_theme_enabled',
+        'header_type','header_button_text','header_button_text_ar','logo_url','theme_color','theme_mode','retro_theme_enabled',
         'font_family','font_family_ar','font_size','header_title_font_family',
         'header_title_font_family_ar','header_title_font_size',
         'gradient_color_1','gradient_color_2','gradient_color_3','gradient_color_4','gradient_color_5',
