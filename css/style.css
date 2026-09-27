@@ -909,3 +909,26 @@ html.retro-controller-theme .receipt-box .receipt-grand-total{
     text-shadow:none!important;
   }
 }
+
+
+/* Step 37.7 — Admin settings subpages */
+.settings-subnav{
+  display:flex;flex-wrap:wrap;gap:7px;margin:10px 0 14px;
+  padding:10px;background:var(--card);border:1px solid var(--border);
+  border-radius:var(--radius)
+}
+.settings-subnav-btn{flex:1 1 190px;text-align:center}
+.settings-subpage{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin:0 0 14px}
+.settings-subpage-head{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:8px}
+.settings-subpage-head h3{margin:0}
+.settings-section-save{margin-top:14px}
+
+/* Home filters when Sort / Items Per Page are hidden. */
+.filters.filters-basic{grid-template-columns:2fr 1fr 1fr}
+.filters.filters-full{grid-template-columns:2fr 1fr 1fr 1fr auto}
+@media(max-width:800px){
+  .filters.filters-basic,.filters.filters-full{grid-template-columns:1fr 1fr}
+}
+@media(max-width:520px){
+  .filters.filters-basic,.filters.filters-full{grid-template-columns:1fr}
+}
