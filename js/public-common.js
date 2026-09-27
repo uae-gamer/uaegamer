@@ -173,8 +173,9 @@ window.PublicSite = {
       const safeLogoUrl = this.safeUrl(s.logo_url || '', { image:true });
       if (s.header_type === 'button') {
         const buttonText = String(this.localized(s,'header_button_text') || '').trim() || name;
-        brand.innerHTML = `<a class="header-home-button btn primary" href="./index.html#home" aria-label="${this.escAttr(buttonText)}">${this.esc(buttonText)}</a>`;
+        brand.innerHTML = `<a class="header-home-button btn primary" href="./index.html#home" aria-label="${this.escAttr(buttonText)}"><span class="header-home-button-label">${this.esc(buttonText)}</span></a>`;
         brand.querySelector('a').style.setProperty('--header-button-font-size', this.cssSize(s.header_title_font_size, '2.5rem'));
+        FontLoader?.fitHeaderButton?.(brand.querySelector('a'));
       } else if (s.header_type === 'image' && safeLogoUrl) {
         brand.innerHTML = `<a href="./index.html#home"><img class="site-logo" src="${this.escAttr(safeLogoUrl)}" alt="${this.escAttr(name)}"></a>`;
       } else {

@@ -1,6 +1,40 @@
 window.FontLoader = {
   loaded: new Set(),
 
+  fitHeaderButton(button) {
+    this.headerButtonObserver?.disconnect();
+    this.headerButtonObserver = null;
+    if (!button) return;
+    const label = button.querySelector('.header-home-button-label');
+    if (!label) return;
+
+    const fit = () => {
+      if (!button.isConnected || !button.clientWidth) return;
+      const style = getComputedStyle(button);
+      const width = button.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight) - 6;
+      const height = button.clientHeight - parseFloat(style.paddingTop) - parseFloat(style.paddingBottom) - 6;
+      if (width <= 0 || height <= 0) return;
+      const preferred = parseFloat(style.getPropertyValue('--header-button-font-size')) || 40;
+      let low = 1;
+      let high = Math.max(preferred, height * .76);
+      for (let i = 0; i < 16; i++) {
+        const middle = (low + high) / 2;
+        label.style.fontSize = `${middle}px`;
+        if (label.getBoundingClientRect().width <= width && label.getBoundingClientRect().height <= height) low = middle;
+        else high = middle;
+      }
+      label.style.fontSize = `${low}px`;
+    };
+
+    fit();
+    if (typeof ResizeObserver !== 'undefined') {
+      this.headerButtonObserver = new ResizeObserver(fit);
+      this.headerButtonObserver.observe(button);
+    } else window.addEventListener('resize', fit, { passive:true });
+    document.fonts?.ready.then(fit);
+    document.fonts?.addEventListener?.('loadingdone', fit, { once:true });
+  },
+
   cssFamily(value) {
     const raw = String(value || '').trim();
     const match = raw.match(/^['"]?([^,'"]+)['"]?/);
