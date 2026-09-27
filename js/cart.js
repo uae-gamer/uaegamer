@@ -45,7 +45,7 @@ window.Cart = {
   },
 
   add(id) {
-    if (!Store.state.user) {
+    if (!Store.state.user && Store.state.settings?.allow_guest_checkout !== true) {
       Store.go('login');
       Store.alert(Store.state.lang === 'ar' ? 'يرجى تسجيل الدخول قبل استخدام سلة التسوق.' : 'Please log in before using the shopping cart.', 'err');
       return;
@@ -107,7 +107,7 @@ window.Cart = {
   async render() {
     const ar = Store.state.lang === 'ar';
 
-    if (!Store.state.user) {
+    if (!Store.state.user && Store.state.settings?.allow_guest_checkout !== true) {
       Store.view(`
         <div class="alert err">
           ${ar ? 'الوصول مقيّد. يجب تسجيل الدخول كمستخدم مسجل لعرض سلة التسوق وإدارتها.' : 'Access Restricted. You must be logged in as a registered user to view and manage your shopping cart.'}
@@ -198,9 +198,10 @@ window.Cart = {
 
   async renderCheckout() {
     const ar = Store.state.lang === 'ar';
-    if (!Store.state.user) return Store.go('login');
+    const isGuest = !Store.state.user;
+    if (isGuest && Store.state.settings?.allow_guest_checkout !== true) return Store.go('login');
 
-    if (Store.state.settings?.require_verified_email_for_checkout === true) {
+    if (!isGuest && Store.state.settings?.require_verified_email_for_checkout === true) {
       try {
         const status = await Auth.emailVerificationStatus();
         if (!status?.verified) {
@@ -285,11 +286,15 @@ window.Cart = {
     const email = Store.state.user?.email || '';
     const itemTotal = rows.reduce((sum,[p,q]) => sum + Products.price(p)*q, 0);
     const savedState = this.getCheckoutState();
+    const guestNotice = !Store.state.user
+      ? `<div class="alert">${ar ? 'أنت تتابع كضيف. احتفظ برابط تتبع الطلب الخاص الذي سيظهر بعد إرسال الطلب.' : 'You are checking out as a guest. Keep the private order-tracking link shown after your order is created.'}</div>`
+      : '';
 
     Store.view(`
       <button id="back-cart" class="btn secondary">← Back to Cart</button>
 
       <h2>${t('deliveryPayment')}</h2>
+      ${guestNotice}
 
       <form id="checkout-form" class="panel">
         <div class="bilingual">
@@ -481,7 +486,10 @@ window.Cart = {
     const profile = Store.state.profile || {};
     const email = Store.state.user?.email || '';
     const itemTotal = rows.reduce((sum,[p,q]) => sum + Products.price(p)*q, 0);
-    const cardFeatureEnabled = Store.state.settings?.paypal_card_payments_enabled === true;
+    const guestNotice = !Store.state.user
+      ? `<div class="alert">${ar ? 'أنت تتابع كضيف. احتفظ برابط تتبع الطلب الخاص بعد الدفع.' : 'You are checking out as a guest. Keep your private order-tracking link after payment.'}</div>`
+      : '';
+    const cardFeatureEnabled = Boolean(Store.state.user) && Store.state.settings?.paypal_card_payments_enabled === true;
 
     this.cardPaymentSession = null;
     this.checkoutPaymentMethodTouched = false;
@@ -490,6 +498,7 @@ window.Cart = {
       <button id="back-cart" class="btn secondary">← ${t('backCart')}</button>
 
       <h2>${t('deliveryPayment')}</h2>
+      ${guestNotice}
 
       <form id="checkout-form" class="panel" novalidate>
         <div class="alert ok">
@@ -647,7 +656,7 @@ window.Cart = {
 
       if (!document.getElementById('delivery-agree')?.checked) {
         Store.alert(
-          ar ? 'يجب الموافقة على سياسة التوصيل أولاً.' : 'You must agree to the Delivery Policy first.',
+          ar ? 'يجب الموافقة على سياسة الطلب والتوصيل أولاً.' : 'You must agree to the Delivery Policy first.',
           'err'
         );
         return false;
@@ -1059,6 +1068,19 @@ window.Cart = {
     }
   },
 
+  saveGuestOrderAccess(orderId, orderNumber, token) {
+    if (!orderId || !token) return;
+    try {
+      const all = JSON.parse(localStorage.getItem('uaegamer_guest_orders_v1') || '{}');
+      all[String(orderId)] = { token:String(token), order_number:orderNumber || null, saved_at:Date.now() };
+      localStorage.setItem('uaegamer_guest_orders_v1', JSON.stringify(all));
+    } catch (_) {}
+  },
+
+  guestTrackingRoute(orderId, token) {
+    return `guest-order/${encodeURIComponent(String(orderId||''))}/${encodeURIComponent(String(token||''))}`;
+  },
+
   async submitAutomaticOrder(rows) {
     const ar = Store.state.lang === 'ar';
     const form = document.getElementById('checkout-form');
@@ -1076,6 +1098,33 @@ window.Cart = {
     let createdOrder = null;
 
     try {
+      if (!Store.state.user) {
+        const { data, error } = await db.functions.invoke('guest-checkout', {
+          body:{
+            action:'automatic_start',
+            items,
+            first_name:String(fd.get('first_name')||'').trim(),
+            last_name:String(fd.get('last_name')||'').trim(),
+            email:String(fd.get('email')||'').trim(),
+            mobile_number:String(fd.get('mobile_number')||'').trim(),
+            delivery_address:String(fd.get('delivery_address')||'').trim(),
+            customer_notes:String(fd.get('customer_notes')||'').trim() || null
+          }
+        });
+        if (error) throw error;
+        if (data?.error) throw new Error(data.error);
+        if (!data?.approve_url || !data?.guest_token || !data?.order_id) throw new Error('Guest PayPal checkout could not be initialized.');
+
+        this.saveGuestOrderAccess(data.order_id, data.order_number, data.guest_token);
+        try {
+          sessionStorage.setItem('guest_paypal_order_id', String(data.order_id));
+          sessionStorage.setItem('guest_paypal_paypal_order_id', String(data.paypal_order_id||''));
+          sessionStorage.setItem('guest_paypal_token', String(data.guest_token));
+        } catch (_) {}
+        location.href = data.approve_url;
+        return;
+      }
+
       const { data, error } = await db.rpc('create_order_automatic', {
         p_items: items,
         p_first_name: String(fd.get('first_name')||'').trim(),
@@ -1171,6 +1220,53 @@ window.Cart = {
 
     button.disabled = true;
     button.textContent = Store.state.lang === 'ar' ? 'جارٍ إرسال الطلب...' : 'Submitting order...';
+
+    if (!Store.state.user) {
+      const { data, error } = await db.functions.invoke('guest-checkout', {
+        body:{
+          action:'manual_submit',
+          items,
+          first_name:String(fd.get('first_name')||'').trim(),
+          last_name:String(fd.get('last_name')||'').trim(),
+          email:String(fd.get('email')||'').trim(),
+          mobile_number:String(fd.get('mobile_number')||'').trim(),
+          delivery_address:String(fd.get('delivery_address')||'').trim(),
+          customer_notes:String(fd.get('customer_notes')||'').trim() || null
+        }
+      });
+
+      if (error || data?.error) {
+        const message = data?.error || error?.message || 'Guest order submission failed.';
+        console.error(error || message);
+        Store.alert(Store.state.lang === 'ar' ? 'فشل إرسال طلب الضيف.' : message, 'err');
+        button.disabled = false;
+        button.textContent = t('submitVerification');
+        return;
+      }
+
+      this.saveGuestOrderAccess(data.order_id, data.order_number, data.guest_token);
+      this.clear();
+      await Products.load();
+      const route = this.guestTrackingRoute(data.order_id, data.guest_token);
+
+      Store.view(`
+        <div class="alert ok">
+          ${Store.state.lang === 'ar'
+            ? `تم إرسال الطلب رقم ${Store.esc(data?.order_number || '')} بنجاح للتحقق من الدفع.`
+            : `Order #${Store.esc(data?.order_number || '')} was submitted successfully for payment verification.`}
+        </div>
+        <div class="card">
+          <p>${Store.state.lang === 'ar'
+            ? 'احفظ رابط تتبع الطلب الخاص بك. هذا الرابط هو وسيلة الوصول إلى الطلب كضيف.'
+            : 'Save your private order-tracking link. This link is your guest access to the order.'}</p>
+          <button id="view-guest-order" class="btn primary">${Store.state.lang === 'ar' ? 'عرض وتتبع الطلب' : 'View and Track Order'}</button>
+          <button id="return-home" class="btn">${t('home')}</button>
+        </div>
+      `);
+      document.getElementById('view-guest-order').onclick = () => Store.go(route);
+      document.getElementById('return-home').onclick = () => Store.go('home');
+      return;
+    }
 
     const { data, error } = await db.rpc('create_order', {
       p_items: items,

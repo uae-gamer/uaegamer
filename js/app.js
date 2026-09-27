@@ -421,6 +421,9 @@ window.Store = {
 
       links.push(['logout', t('logout')]);
     } else {
+      if (this.state.settings?.allow_guest_checkout === true) {
+        links.push(['cart', `${t('cart')} (${Cart.count()})`]);
+      }
       links.push(['login', t('login')], ['register', t('register')]);
     }
 
@@ -670,6 +673,10 @@ window.Store = {
     if (route === 'register') return this.registerView();
     if (route === 'account') return this.accountView();
     if (route === 'orders') return this.ordersView();
+    if (route.startsWith('guest-order/')) {
+      const parts = route.split('/');
+      return this.guestOrderView(decodeURIComponent(parts[1]||''), decodeURIComponent(parts[2]||''));
+    }
     if (route.startsWith('receipt/')) return this.receiptView(route.split('/')[1]);
     if (route === 'contact') return this.contactView();
     if (route === 'admin' || route.startsWith('admin/')) {
@@ -1066,6 +1073,95 @@ window.Store = {
     document.getElementById('orders-next')?.addEventListener('click', () => this.ordersView(page+1));
   },
 
+  async guestOrderView(orderId, guestToken) {
+    const ar = this.state.lang === 'ar';
+    if (!orderId || !guestToken) {
+      this.view(`<div class="alert err">${ar ? 'رابط تتبع طلب الضيف غير صالح.' : 'This guest order-tracking link is invalid.'}</div>`);
+      return;
+    }
+
+    this.view(`<div class="card loading-state">${ar ? 'جارٍ تحميل الطلب…' : 'Loading order…'}</div>`);
+
+    const {data,error} = await db.functions.invoke('guest-checkout', {
+      body:{action:'view',order_id:orderId,guest_token:guestToken}
+    });
+
+    if (error || data?.error || !data?.order) {
+      const message = data?.error || error?.message || (ar ? 'تعذر تحميل الطلب.' : 'Unable to load this order.');
+      this.view(`<div class="alert err">${this.esc(message)}</div>`);
+      return;
+    }
+
+    const o = data.order;
+    const items = o.order_items || [];
+
+    this.view(`
+      <h2>${ar ? 'تتبع طلب الضيف' : 'Guest Order Tracking'}</h2>
+      <div class="alert">
+        ${ar
+          ? 'احتفظ بهذا الرابط بشكل خاص. أي شخص لديه الرابط الكامل يمكنه عرض تفاصيل هذا الطلب.'
+          : 'Keep this link private. Anyone with the complete link can view this order.'}
+      </div>
+      <div class="card">
+        <div class="order-summary-head">
+          <div>
+            <strong>${t('order')} #${this.esc(o.order_number||'')}</strong><br>
+            <span class="muted">${o.created_at ? new Date(o.created_at).toLocaleString() : ''}</span>
+          </div>
+          <div>${this.statusBadge(o.status)}</div>
+        </div>
+        <p><strong>${ar ? 'حالة الدفع' : 'Payment Status'}:</strong> ${this.esc(
+          o.payment_status==='paid' ? (ar?'مدفوع':'Paid') :
+          o.payment_status==='pending' ? (ar?'قيد الدفع':'Payment Pending') :
+          o.payment_status==='failed' ? (ar?'فشل/ألغي':'Failed/Cancelled') :
+          o.payment_status==='refunded' ? (ar?'مسترد':'Refunded') :
+          o.payment_status==='partially_refunded' ? (ar?'مسترد جزئياً':'Partially Refunded') :
+          (ar?'غير مدفوع':'Unpaid')
+        )}</p>
+        <p><strong>${t('total')}:</strong> ${Number(o.total_usd||0).toFixed(2)} ${this.esc(o.currency||'USD')}</p>
+        <p><strong>${ar ? 'اسم العميل' : 'Customer'}:</strong> ${this.esc(`${o.first_name||''} ${o.last_name||''}`.trim())}</p>
+        <p><strong>${t('email')}:</strong> ${this.esc(o.email||'')}</p>
+        <p><strong>${ar ? 'الهاتف المتحرك' : 'Mobile'}:</strong> ${this.esc(o.mobile_number||'')}</p>
+        <p><strong>${t('deliveryAddress')}:</strong> ${this.esc(o.delivery_address||'')}</p>
+
+        <div class="table-wrap">
+          <table>
+            <thead><tr>
+              <th>${ar?'المنتج':'Item'}</th>
+              <th>${t('quantity')}</th>
+              <th>${ar?'سعر الوحدة':'Unit Price'}</th>
+              <th>${t('subtotal')}</th>
+            </tr></thead>
+            <tbody>
+              ${items.map(i=>`
+                <tr>
+                  <td>${this.esc(i.product_title||'')}</td>
+                  <td>${Number(i.quantity||0)}</td>
+                  <td>${Number(i.unit_price_usd||0).toFixed(2)} USD</td>
+                  <td>${(Number(i.unit_price_usd||0)*Number(i.quantity||0)).toFixed(2)} USD</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+        <div class="inline-actions" style="margin-top:12px">
+          <button id="copy-guest-link" class="btn secondary">${ar?'نسخ رابط التتبع':'Copy Tracking Link'}</button>
+          <button id="guest-home" class="btn">${t('home')}</button>
+        </div>
+      </div>
+    `);
+
+    document.getElementById('copy-guest-link')?.addEventListener('click', async ()=>{
+      try {
+        await navigator.clipboard.writeText(location.href);
+        this.alert(ar?'تم نسخ رابط التتبع.':'Tracking link copied.');
+      } catch (_) {
+        this.alert(ar?'تعذر نسخ الرابط تلقائياً.':'Unable to copy the link automatically.','err');
+      }
+    });
+    document.getElementById('guest-home')?.addEventListener('click',()=>this.go('home'));
+  },
+
   statusBadge(status) {
     const ar = this.state.lang === 'ar';
     const map = {
@@ -1264,6 +1360,92 @@ window.Store = {
       const label = entry.row ? (localize(entry.row,'title') || entry.fallback) : entry.fallback;
       return `<a class="btn footer-page" href="${entry.href}">${this.esc(label)}</a>`;
     }).join('');
+  },
+
+  async handleGuestPayPalReturn() {
+    const params = new URLSearchParams(location.search);
+    const state = params.get('guest_paypal');
+    if (!state) return false;
+
+    const ar = this.state.lang === 'ar';
+    const paypalOrderId = String(params.get('token') || '').trim();
+    const orderId = sessionStorage.getItem('guest_paypal_order_id') || '';
+    const expectedPayPalOrderId = sessionStorage.getItem('guest_paypal_paypal_order_id') || '';
+    const guestToken = sessionStorage.getItem('guest_paypal_token') || '';
+
+    const clean = hash => {
+      history.replaceState({},'',`${location.pathname}#${hash}`);
+      location.hash = hash;
+    };
+
+    if (!orderId || !guestToken) {
+      try {
+        sessionStorage.setItem('sf_flash', ar
+          ? 'تعذر استعادة بيانات طلب الضيف. استخدم رابط التتبع الخاص الذي تم حفظه عند إنشاء الطلب.'
+          : 'Guest order access could not be restored. Use the private tracking link saved when the order was created.');
+      } catch (_) {}
+      clean('home');
+      return true;
+    }
+
+    if (state === 'cancelled') {
+      try {
+        await db.functions.invoke('guest-checkout', {
+          body:{action:'cancel',order_id:orderId,guest_token:guestToken}
+        });
+      } catch (_) {}
+
+      sessionStorage.removeItem('guest_paypal_order_id');
+      sessionStorage.removeItem('guest_paypal_paypal_order_id');
+      sessionStorage.removeItem('guest_paypal_token');
+      try {
+        sessionStorage.setItem('sf_flash', ar
+          ? 'تم إلغاء الدفع. لم يتم تحصيل أي مبلغ وبقيت السلة كما هي.'
+          : 'Payment cancelled. No payment was taken and your cart is unchanged.');
+      } catch (_) {}
+      clean('cart');
+      return true;
+    }
+
+    if (state !== 'approved' || !paypalOrderId) {
+      clean(Cart.guestTrackingRoute(orderId,guestToken));
+      return true;
+    }
+
+    try {
+      if (expectedPayPalOrderId && expectedPayPalOrderId !== paypalOrderId) {
+        throw new Error('PayPal order mismatch detected.');
+      }
+
+      const {data,error}=await db.functions.invoke('guest-checkout',{
+        body:{action:'capture',paypal_order_id:paypalOrderId,guest_token:guestToken}
+      });
+      if(error) throw error;
+      if(data?.error) throw new Error(data.error);
+
+      Cart.clear();
+      Cart.forceManualCheckout=false;
+      await Products.load();
+
+      sessionStorage.removeItem('guest_paypal_order_id');
+      sessionStorage.removeItem('guest_paypal_paypal_order_id');
+      sessionStorage.removeItem('guest_paypal_token');
+      try {
+        sessionStorage.setItem('sf_flash', ar
+          ? `تم الدفع بنجاح. طلبك رقم ${data?.order_number||''} قيد المعالجة الآن.`
+          : `Payment successful. Order #${data?.order_number||''} is now being processed.`);
+      } catch (_) {}
+      clean(Cart.guestTrackingRoute(data?.order_id||orderId,guestToken));
+    } catch(error) {
+      console.error(error);
+      try {
+        sessionStorage.setItem('sf_flash', ar
+          ? 'تعذر تأكيد حالة الدفع النهائية. استخدم رابط تتبع طلب الضيف قبل إعادة محاولة الدفع.'
+          : 'We could not confirm the final payment status. Check the guest tracking page before trying to pay again.');
+      } catch (_) {}
+      clean(Cart.guestTrackingRoute(orderId,guestToken));
+    }
+    return true;
   },
 
   async handlePayPalCheckoutReturn() {
@@ -1645,6 +1827,7 @@ window.Store = {
         console.error('Authentication initialization failed:', e);
       }
 
+      await this.handleGuestPayPalReturn();
       await this.handlePayPalCheckoutReturn();
       await this.handleCard3DSReturn();
       await this.handlePayPalSandboxReturn();

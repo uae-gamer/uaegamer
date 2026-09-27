@@ -2510,6 +2510,17 @@ window.Admin = {
           </small>
         </div>
 
+        <h3>Home and Catalog</h3>
+        <div class="form-group">
+          <label>
+            <input name="show_sort_items_per_page" type="checkbox" style="width:auto" ${data.show_sort_items_per_page!==false?'checked':''}>
+            Show Sorting and Items Per Page controls on Home
+          </label>
+          <small class="muted">
+            Search, Categories and Types remain visible. This setting hides only Sort and Items Per Page.
+          </small>
+        </div>
+
         <h3>Fonts</h3>
         <div class="bilingual">
           <div class="form-group"><label>Base Font - English</label>
@@ -2624,6 +2635,15 @@ window.Admin = {
 
 
         <h3>Payment Configuration</h3>
+        <div class="form-group">
+          <label>
+            <input name="allow_guest_checkout" type="checkbox" style="width:auto" ${data.allow_guest_checkout?'checked':''}>
+            Allow Guest Checkout
+          </label>
+          <small class="muted">
+            When enabled, visitors may add to cart and purchase without registering. Guest orders use a private tracking link and do not weaken registered-user order permissions.
+          </small>
+        </div>
         <p class="muted">
           PayPal automation is being introduced gradually. Manual verification remains the safe default.
           PayPal Client Secret and webhook verification secrets must stay in Supabase Edge Function Secrets,
@@ -2867,6 +2887,145 @@ window.Admin = {
         </div>
       </form>
     `;
+
+    const settingsSectionKeys = {
+      general: new Set(['site_name','site_name_ar','site_description','site_description_ar','default_language']),
+      branding: new Set([
+        'header_type','logo_url','theme_color','theme_mode','retro_theme_enabled',
+        'font_family','font_family_ar','font_size','header_title_font_family',
+        'header_title_font_family_ar','header_title_font_size',
+        'gradient_color_1','gradient_color_2','gradient_color_3','gradient_color_4','gradient_color_5',
+        'favicon_upload','remove_favicon'
+      ]),
+      catalog: new Set(['show_sort_items_per_page']),
+      features: new Set(['show_stats','show_notification_button']),
+      email: new Set([
+        'require_verified_email_for_checkout','require_verification_for_email_change',
+        'email_from_name','email_from_address','admin_notification_email',
+        'send_welcome_email','send_order_customer_emails','send_admin_new_order_email'
+      ]),
+      payments: new Set([
+        'allow_guest_checkout','payment_mode','paypal_environment','paypal_reservation_minutes','paypal_card_payments_enabled'
+      ]),
+      social: new Set([
+        'show_social_icons','instagram_name','instagram_name_ar','instagram_url','instagram_color',
+        'whatsapp_name','whatsapp_name_ar','whatsapp_url','whatsapp_color',
+        'snapchat_name','snapchat_name_ar','snapchat_url','snapchat_color',
+        'tiktok_name','tiktok_name_ar','tiktok_url','tiktok_color'
+      ]),
+      advanced: new Set([
+        'vanta_enabled','vanta_mobile_enabled','vanta_effect','vanta_primary_color',
+        'vanta_background_color','vanta_mouse_controls','vanta_touch_controls'
+      ])
+    };
+
+    const settingsLabels = {
+      general:'General',
+      branding:'Branding and Appearance',
+      catalog:'Home and Catalog',
+      features:'Features',
+      email:'Email and Verification',
+      payments:'Payments and PayPal',
+      social:'Social and Footer',
+      advanced:'Advanced and Animation'
+    };
+
+    const settingsForm = document.getElementById('settings-form');
+    const originalChildren = Array.from(settingsForm.children);
+    const originalSave = originalChildren.find(el => el.querySelector?.('button')?.textContent?.includes('Save Site Settings'));
+    originalSave?.remove();
+
+    const nav = document.createElement('div');
+    nav.className = 'settings-subnav';
+    settingsForm.before(nav);
+
+    const sections = {};
+    Object.keys(settingsLabels).forEach(key => {
+      const section = document.createElement('section');
+      section.className = 'settings-subpage';
+      section.dataset.settingsSection = key;
+      section.innerHTML = `<div class="settings-subpage-head"><h3>${settingsLabels[key]}</h3></div>`;
+      const save = document.createElement('button');
+      save.type = 'submit';
+      save.className = 'btn success settings-section-save';
+      save.dataset.settingsSection = key;
+      save.textContent = `Save ${settingsLabels[key]}`;
+      section.appendChild(save);
+      settingsForm.appendChild(section);
+      sections[key] = section;
+
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'btn settings-subnav-btn';
+      tab.dataset.settingsSection = key;
+      tab.textContent = settingsLabels[key];
+      nav.appendChild(tab);
+    });
+
+    const headingMap = {
+      'Fonts':'branding',
+      'Gradient Header Colors':'branding',
+      'Home and Catalog':'catalog',
+      'Social Media and Footer Features':'social',
+      'Payment Configuration':'payments',
+      'Animated Background':'advanced',
+      'Website Favicon':'branding',
+      'Email Verification Requirements':'email',
+      'Transactional Email':'email'
+    };
+
+    let currentSection = 'general';
+    for (const child of originalChildren) {
+      if (!child.isConnected || child === originalSave) continue;
+
+      if (child.tagName === 'H3') {
+        currentSection = headingMap[child.textContent.trim()] || currentSection;
+        // Section tabs already provide headings, so omit duplicate group heading if identical.
+        if (['Home and Catalog'].includes(child.textContent.trim())) {
+          child.remove();
+          continue;
+        }
+      }
+
+      const names = Array.from(child.querySelectorAll?.('[name]') || []).map(x => x.name);
+      let target = null;
+      for (const [sectionKey, keys] of Object.entries(settingsSectionKeys)) {
+        if (names.some(name => keys.has(name))) {
+          target = sectionKey;
+          break;
+        }
+      }
+
+      // Diagnostic/readiness blocks stay with the current logical section.
+      target = target || currentSection;
+      const saveButton = sections[target].querySelector('.settings-section-save');
+      sections[target].insertBefore(child, saveButton);
+    }
+
+    const showSettingsSection = key => {
+      Object.entries(sections).forEach(([sectionKey, section]) => {
+        const hidden = sectionKey !== key;
+        section.classList.toggle('hidden', hidden);
+        section.querySelectorAll('input,select,textarea').forEach(control => {
+          control.disabled = hidden;
+        });
+      });
+      nav.querySelectorAll('.settings-subnav-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.settingsSection === key);
+      });
+      try { sessionStorage.setItem('uaegamer_settings_section', key); } catch (_) {}
+    };
+
+    nav.querySelectorAll('.settings-subnav-btn').forEach(btn => {
+      btn.onclick = () => showSettingsSection(btn.dataset.settingsSection);
+    });
+
+    let initialSettingsSection = 'general';
+    try {
+      const saved = sessionStorage.getItem('uaegamer_settings_section');
+      if (saved && sections[saved]) initialSettingsSection = saved;
+    } catch (_) {}
+    showSettingsSection(initialSettingsSection);
 
     document.getElementById('paypal-sandbox-test')?.addEventListener('click', async event => {
       const button = event.currentTarget;
@@ -3127,13 +3286,14 @@ window.Admin = {
     document.getElementById('settings-form').onsubmit = async event => {
       event.preventDefault();
       const form = event.currentTarget;
-      const submitButton = form.querySelector('button[type="submit"]');
+      const submitButton = event.submitter || form.querySelector('button[type="submit"]');
+      const settingsSection = submitButton?.dataset?.settingsSection || 'general';
       if (submitButton?.disabled) return;
       Store.setBusy(submitButton, true, 'Saving…');
       const fd = new FormData(form);
 
       const requestedPayPalEnvironment = String(fd.get('paypal_environment') || 'sandbox');
-      if (requestedPayPalEnvironment === 'live' && String(data.paypal_environment || 'sandbox') !== 'live') {
+      if (settingsSection === 'payments' && requestedPayPalEnvironment === 'live' && String(data.paypal_environment || 'sandbox') !== 'live') {
         const confirmed = confirm(
           'LIVE PAYPAL ACTIVATION\n\nThis will make automatic checkout use real PayPal credentials and real money.\n\nOnly continue if the Live Preflight passed and you are ready to perform the controlled real transaction.'
         );
@@ -3164,9 +3324,16 @@ window.Admin = {
       payload.require_verified_email_for_checkout = fd.has('require_verified_email_for_checkout');
       payload.require_verification_for_email_change = fd.has('require_verification_for_email_change');
       payload.retro_theme_enabled = fd.has('retro_theme_enabled');
+      payload.allow_guest_checkout = fd.has('allow_guest_checkout');
+      payload.show_sort_items_per_page = fd.has('show_sort_items_per_page');
 
-      const faviconFile = fd.get('favicon_upload');
-      const removeFavicon = fd.has('remove_favicon');
+      const allowedKeys = settingsSectionKeys[settingsSection] || settingsSectionKeys.general;
+      for (const key of Object.keys(payload)) {
+        if (!allowedKeys.has(key)) delete payload[key];
+      }
+
+      const faviconFile = settingsSection === 'branding' ? fd.get('favicon_upload') : null;
+      const removeFavicon = settingsSection === 'branding' && fd.has('remove_favicon');
       const oldFaviconUrl = String(data.favicon_url || '');
 
       if (removeFavicon) {
@@ -3241,7 +3408,7 @@ window.Admin = {
 
       // A settings save can affect global typography, header mode, colors and footer.
       // Reloading the current URL guarantees every component starts from the same saved state.
-      try { sessionStorage.setItem('sf_flash', 'Site settings saved.'); } catch (_) {}
+      try { sessionStorage.setItem('sf_flash', `${settingsLabels[settingsSection] || 'Site'} settings saved.`); } catch (_) {}
       location.reload();
     };
   },

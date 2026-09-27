@@ -32,14 +32,14 @@ saveChanges:'حفظ التغييرات',shoppingCart:'سلة التسوق',price
 itemTotal:'إجمالي المنتجات',continueCheckout:'متابعة الدفع',backCart:'العودة إلى السلة',deliveryPayment:'معلومات التوصيل والدفع',
 emailAddress:'عنوان البريد الإلكتروني',contactMobile:'رقم الهاتف للتواصل',customerNotes:'ملاحظات العميل',paypalVerification:'التحقق من PayPal',
 payPaypal:'الدفع عبر PayPal',transactionId:'معرّف معاملة PayPal',deliveryFee:'رسوم التوصيل',gatewayFee:'رسوم بوابة الدفع',vat:'ضريبة القيمة المضافة',total:'الإجمالي',
-agreeDelivery:'أوافق على سياسة التوصيل الموضحة في الموقع.',submitVerification:'إرسال الطلب للتحقق',
+agreeDelivery:'أوافق على سياسة الطلب والتوصيل الموضحة في الموقع.',submitVerification:'إرسال الطلب للتحقق',
 contactUs:'اتصل بنا',messageType:'نوع الرسالة',yourMessage:'رسالتك',submitMessage:'إرسال الرسالة',
 emailReplyNote:'سيتم استخدام عنوان البريد الإلكتروني هذا للرد على رسالتك.',orderRelated:'متعلق بطلب',complaint:'شكوى',feedback:'ملاحظات',question:'سؤال',
 order:'الطلب',status:'الحالة',printReceipt:'طباعة الإيصال',backOrders:'العودة إلى الطلبات',receiptAvailable:'سيصبح الإيصال متاحاً بعد التحقق من الدفع والطلب.',
 viewReceipt:'طباعة / عرض الإيصال',noOrders:'لم تقم بإجراء أي طلبات حتى الآن.',category:'التصنيف',type:'النوع',equalsApprox:'يعادل تقريباً',
 unavailable:'غير متاح',backStore:'العودة إلى المتجر',shareProduct:'مشاركة المنتج',copyLink:'نسخ رابط المنتج',linkCopied:'تم نسخ رابط المنتج.',
 entries:'عنصر',page:'الصفحة',of:'من',noIncluded:'لم تتم إضافة محتويات مشمولة.',terms:'شروط الاستخدام',privacy:'سياسة الخصوصية',
-delivery:'سياسة التوصيل',usd:'دولار أمريكي',aed:'درهم إماراتي',page1:'الصفحة 1',page2:'الصفحة 2',page3:'الصفحة 3',page4:'الصفحة 4'
+delivery:'سياسة الطلب والتوصيل',usd:'دولار أمريكي',aed:'درهم إماراتي',page1:'الصفحة 1',page2:'الصفحة 2',page3:'الصفحة 3',page4:'الصفحة 4'
 }
 };
 window.t=k=>(I18N[Store.state.lang]||I18N.en)[k]||k;

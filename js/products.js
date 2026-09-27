@@ -88,7 +88,7 @@ window.Products = {
       : '';
 
     html += `
-      <div class="filters">
+      <div class="filters ${s.settings?.show_sort_items_per_page === false ? 'filters-basic' : 'filters-full'}">
         <input id="q" value="${Store.escAttr(c.query)}" placeholder="${t('search')}">
 
         <select id="cat">
@@ -105,19 +105,21 @@ window.Products = {
           ).join('')}
         </select>
 
-        <select id="sort">
-          <option value="default" ${c.sort==='default'?'selected':''}>${t('defaultOrder')}</option>
-          <option value="az" ${c.sort==='az'?'selected':''}>${t('az')}</option>
-          <option value="za" ${c.sort==='za'?'selected':''}>${t('za')}</option>
-          <option value="low" ${c.sort==='low'?'selected':''}>${t('lowHigh')}</option>
-          <option value="high" ${c.sort==='high'?'selected':''}>${t('highLow')}</option>
-        </select>
+        ${s.settings?.show_sort_items_per_page === false ? '' : `
+          <select id="sort">
+            <option value="default" ${c.sort==='default'?'selected':''}>${t('defaultOrder')}</option>
+            <option value="az" ${c.sort==='az'?'selected':''}>${t('az')}</option>
+            <option value="za" ${c.sort==='za'?'selected':''}>${t('za')}</option>
+            <option value="low" ${c.sort==='low'?'selected':''}>${t('lowHigh')}</option>
+            <option value="high" ${c.sort==='high'?'selected':''}>${t('highLow')}</option>
+          </select>
 
-        <select id="per">
-          <option value="8" ${c.per===8?'selected':''}>8</option>
-          <option value="16" ${c.per===16?'selected':''}>16</option>
-          <option value="32" ${c.per===32?'selected':''}>32</option>
-        </select>
+          <select id="per">
+            <option value="8" ${c.per===8?'selected':''}>8</option>
+            <option value="16" ${c.per===16?'selected':''}>16</option>
+            <option value="32" ${c.per===32?'selected':''}>32</option>
+          </select>
+        `}
       </div>
 
       <div id="catalog"></div>
