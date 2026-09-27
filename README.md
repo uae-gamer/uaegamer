@@ -1,5 +1,3 @@
-# UAEGamer Step 37.5
+# UAEGamer Step 37.6
 
-Adds configurable email verification, editable customer login email, Admin username history, the requested Arabic product-details label, and customer Included Content search/page-jump navigation. Receipt behavior is unchanged.
-
-See `STEP37-5-DEPLOY.md` before deployment.
+Adds the optional global Retro Controller Theme. See `STEP37-6-DEPLOY.md`.
