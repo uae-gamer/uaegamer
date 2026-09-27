@@ -145,6 +145,7 @@ window.PublicSite = {
     root.dir = this.state.lang === 'ar' ? 'rtl' : 'ltr';
     root.dataset.theme = this.state.theme;
     document.body.classList.toggle('dark', this.state.theme === 'dark');
+    root.classList.toggle('retro-controller-theme', s.retro_theme_enabled === true);
 
     root.style.setProperty('--primary', s.theme_color || '#0066cc');
     root.style.setProperty('--base-font-size', this.cssSize(s.font_size, '14px'));

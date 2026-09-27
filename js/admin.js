@@ -2488,6 +2488,17 @@ window.Admin = {
             </select></div>
         </div>
 
+        <div class="form-group retro-theme-setting">
+          <label>
+            <input name="retro_theme_enabled" type="checkbox" style="width:auto" ${data.retro_theme_enabled?'checked':''}>
+            Enable Retro Controller Theme Globally
+          </label>
+          <small class="muted">
+            Applies the controller-inspired cream, charcoal, plum and muted-navy visual theme to the website.
+            This changes appearance only; website features and workflows remain unchanged.
+          </small>
+        </div>
+
         <div class="form-group">
           <label>Default Language for First-Time Visitors</label>
           <select name="default_language">
@@ -3152,6 +3163,7 @@ window.Admin = {
       payload.paypal_card_payments_enabled = fd.has('paypal_card_payments_enabled');
       payload.require_verified_email_for_checkout = fd.has('require_verified_email_for_checkout');
       payload.require_verification_for_email_change = fd.has('require_verification_for_email_change');
+      payload.retro_theme_enabled = fd.has('retro_theme_enabled');
 
       const faviconFile = fd.get('favicon_upload');
       const removeFavicon = fd.has('remove_favicon');

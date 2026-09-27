@@ -290,6 +290,7 @@ window.Store = {
     this.applyBasicUI();
 
     const s = this.state.settings || {};
+    document.documentElement.classList.toggle('retro-controller-theme', s.retro_theme_enabled === true);
     document.documentElement.style.setProperty('--primary', s.theme_color || '#0066cc');
 
     const name = localize(s, 'site_name') || 'UAEGamer';
