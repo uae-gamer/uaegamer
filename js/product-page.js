@@ -64,8 +64,8 @@ window.ProductPage = {
               ? `<img id="product-detail-image" src="${PublicSite.escAttr(this.images[0].image_url)}" alt="${PublicSite.escAttr(title)}">`
               : `<div class="muted">${PublicSite.ui('No image','لا توجد صورة')}</div>`}
             ${this.images.length > 1 ? `
-              <button id="detail-prev" class="gallery-arrow gallery-prev">‹</button>
-              <button id="detail-next" class="gallery-arrow gallery-next">›</button>
+              <button id="detail-prev" class="gallery-arrow ${PublicSite.state.lang==='ar'?'gallery-next':'gallery-prev'}" aria-label="${PublicSite.ui('Previous image','الصورة السابقة')}">${PublicSite.state.lang==='ar'?'›':'‹'}</button>
+              <button id="detail-next" class="gallery-arrow ${PublicSite.state.lang==='ar'?'gallery-prev':'gallery-next'}" aria-label="${PublicSite.ui('Next image','الصورة التالية')}">${PublicSite.state.lang==='ar'?'‹':'›'}</button>
               <span id="detail-counter" class="gallery-counter">1 / ${this.images.length}</span>` : ''}
           </div>
           ${this.images.length > 1 ? `

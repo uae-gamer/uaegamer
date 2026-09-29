@@ -126,6 +126,7 @@ window.Products = {
     `;
 
     Store.view(html);
+    this.startTextBar();
 
     let searchTimer = null;
 
@@ -163,6 +164,42 @@ window.Products = {
     });
 
     this.renderCatalog(c.page || 1);
+  },
+
+  startTextBar() {
+    this.textBarObserver?.disconnect();
+    this.textBarAnimation?.cancel();
+    if (this.textBarResizeHandler) window.removeEventListener('resize', this.textBarResizeHandler);
+    const bar = document.querySelector('.text-bar');
+    const track = bar?.querySelector('.text-track');
+    if (!bar || !track) return;
+    const animate = () => {
+      if (!bar.isConnected || !bar.clientWidth) return;
+      this.textBarAnimation?.cancel();
+      const width = track.scrollWidth;
+      const viewport = bar.clientWidth;
+      bar.style.minHeight = `${Math.max(40, track.offsetHeight + 2)}px`;
+      const rtl = Store.state.lang === 'ar';
+      // Start at the entry edge and reset as soon as the trailing edge exits.
+      const from = rtl ? -width + 1 : viewport - 1;
+      const to = rtl ? viewport : -width;
+      this.textBarAnimation = track.animate([
+        {transform:`translateX(${from}px)`},
+        {transform:`translateX(${to}px)`}
+      ], {duration:Math.abs(to-from) / 40 * 1000, iterations:Infinity, easing:'linear'});
+    };
+    animate();
+    bar.addEventListener('mouseenter', () => this.textBarAnimation?.pause());
+    bar.addEventListener('mouseleave', () => this.textBarAnimation?.play());
+    if (typeof ResizeObserver !== 'undefined') {
+      this.textBarObserver = new ResizeObserver(animate);
+      this.textBarObserver.observe(bar);
+      this.textBarObserver.observe(track);
+    } else {
+      this.textBarResizeHandler = animate;
+      window.addEventListener('resize', animate, {passive:true});
+    }
+    document.fonts?.ready.then(animate);
   },
 
   async renderCatalog(page = 1) {
