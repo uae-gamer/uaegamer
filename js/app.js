@@ -714,14 +714,13 @@ window.Store = {
 
   maintenanceView() {
     const ar = this.state.lang === 'ar';
-    const message = String((ar ? this.state.settings?.maintenance_message_ar : this.state.settings?.maintenance_message) || '').trim()
-      || (ar ? 'الموقع تحت الصيانة حالياً. سنعود قريباً.' : 'The website is under maintenance. We will be back soon.');
+    const message = String((ar ? this.state.settings?.maintenance_message_ar : this.state.settings?.maintenance_message) || '').trim();
     this.view(`<section class="panel maintenance-panel" role="status">
       <h1>${ar ? 'الموقع تحت الصيانة' : 'Website Under Maintenance'}</h1>
-      <p>${this.esc(message)}</p>
+      ${message ? `<p>${this.esc(message)}</p>` : ''}
       ${this.state.user
-        ? `<button type="button" id="maintenance-sign-out" class="btn">${ar ? 'تسجيل الخروج' : 'Sign out'}</button>`
-        : `<a class="btn" href="#login">${ar ? 'دخول المسؤول' : 'Admin sign in'}</a>`}
+        ? `<button type="button" id="maintenance-sign-out" class="btn">${ar ? 'تسجيل الخروج' : 'Log Out'}</button>`
+        : `<a class="btn" href="#login">${ar ? 'تسجيل الدخول' : 'Log In'}</a>`}
     </section>`);
     document.getElementById('maintenance-sign-out')?.addEventListener('click', async () => {
       await Auth.logout();

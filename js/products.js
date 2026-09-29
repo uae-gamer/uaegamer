@@ -357,7 +357,6 @@ window.Products = {
                 </button>
               `).join('')}
             </div>
-            <a class="more-product-images" href="./product.html?id=${encodeURIComponent(p.id)}" hidden></a>
           ` : ''}
         </div>
 
@@ -394,28 +393,6 @@ window.Products = {
   },
 
   bindCards() {
-    this.thumbnailObserver?.disconnect();
-    const updateThumbnails = row => {
-      if (!row.isConnected) return;
-      const buttons = [...row.querySelectorAll('.product-thumbnail')];
-      const capacity = Math.max(1, Math.floor((row.clientWidth + 6) / 60));
-      buttons.forEach((button, i) => { button.hidden = i >= capacity; });
-      const more = row.nextElementSibling;
-      if (more?.classList.contains('more-product-images')) {
-        const remaining = Math.max(0, buttons.length - capacity);
-        more.hidden = remaining === 0;
-        if (remaining) more.textContent = Store.state.lang === 'ar'
-          ? `عرض ${remaining} صور إضافية في صفحة المنتج`
-          : `View ${remaining} more images on product page`;
-      }
-    };
-    const rows = [...document.querySelectorAll('.modern-product-card .product-thumbnails')];
-    rows.forEach(updateThumbnails);
-    if (typeof ResizeObserver !== 'undefined') {
-      this.thumbnailObserver = new ResizeObserver(entries => entries.forEach(entry => updateThumbnails(entry.target)));
-      rows.forEach(row => this.thumbnailObserver.observe(row));
-    } else window.addEventListener('resize', () => rows.forEach(updateThumbnails), {passive:true});
-
     document.querySelectorAll('.add').forEach(button => {
       button.onclick = () => Cart.add(button.dataset.id);
     });

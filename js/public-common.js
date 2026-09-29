@@ -418,15 +418,20 @@ window.PublicSite = {
       this.applyAppearance();
       if (this.state.settings?.maintenance_mode === true && this.state.profile?.role !== 'admin') {
         const ar = this.state.lang === 'ar';
-        const message = String((ar ? this.state.settings.maintenance_message_ar : this.state.settings.maintenance_message) || '').trim()
-          || (ar ? 'الموقع تحت الصيانة حالياً. سنعود قريباً.' : 'The website is under maintenance. We will be back soon.');
+        const message = String((ar ? this.state.settings.maintenance_message_ar : this.state.settings.maintenance_message) || '').trim();
         document.body.classList.add('maintenance-active');
         const main = document.querySelector('main');
         if (main) main.innerHTML = `<section class="panel maintenance-panel" role="status">
           <h1>${ar ? 'الموقع تحت الصيانة' : 'Website Under Maintenance'}</h1>
-          <p>${this.esc(message)}</p>
-          <a class="btn" href="./index.html#login">${ar ? 'دخول المسؤول' : 'Admin sign in'}</a>
+          ${message ? `<p>${this.esc(message)}</p>` : ''}
+          ${this.state.user
+            ? `<button type="button" id="maintenance-public-sign-out" class="btn">${ar ? 'تسجيل الخروج' : 'Log Out'}</button>`
+            : `<a class="btn" href="./index.html#login">${ar ? 'تسجيل الدخول' : 'Log In'}</a>`}
         </section>`;
+        document.getElementById('maintenance-public-sign-out')?.addEventListener('click', async () => {
+          await db.auth.signOut();
+          location.href = './index.html#home';
+        });
         return false;
       }
       this.renderNav();
