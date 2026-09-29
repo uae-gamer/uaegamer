@@ -1035,8 +1035,8 @@ html.uae-flag-theme[data-theme="dark"] .product-badges .product-pill{color:#1017
 .modern-product-card .product-thumbnail{width:44px;min-width:44px;height:44px;flex:0 0 44px}
 .modern-product-card .product-thumbnail[hidden]{display:none!important}
 .thumbnail-more{position:relative;display:block;text-decoration:none}
-.thumbnail-more-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,.8);color:#151515;font-size:30px;font-weight:800;line-height:1}
-.thumbnail-more:hover .thumbnail-more-overlay{background:rgba(255,255,255,.94)}
+.thumbnail-more-overlay{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;background:color-mix(in srgb,var(--primary) 84%,transparent);color:#fff;font-size:30px;font-weight:800;line-height:1}
+.thumbnail-more:hover .thumbnail-more-overlay{background:color-mix(in srgb,var(--primary) 96%,transparent)}
 .thumbnail-more:focus-visible{outline:2px solid var(--primary);outline-offset:-2px}
 
 body.maintenance-active header,body.maintenance-active footer{display:none!important}
@@ -1044,6 +1044,16 @@ body.maintenance-active header,body.maintenance-active footer{display:none!impor
 .maintenance-panel h1{font-family:var(--header-font);margin-top:0}
 .maintenance-panel p{white-space:pre-wrap;line-height:1.6}
 .maintenance-panel .btn{margin-top:12px}
+
+/* Full product gallery thumbnails scroll without shrinking or clipping the first image. */
+.product-detail-grid>div{min-width:0}
+.product-detail-thumbs{width:100%;max-width:100%;justify-content:flex-start;flex-wrap:nowrap;overflow-x:auto;overflow-y:hidden;overscroll-behavior-inline:contain}
+.product-detail-thumbs .image-thumb{flex:0 0 auto}
+
+/* JS measures the exact entry/exit points and uses a constant reading speed. */
+.text-bar{position:relative;display:block;min-height:40px}
+.text-bar .text-track{position:absolute;left:0;top:0;direction:inherit;width:max-content;animation:none!important}
+html[dir="rtl"] .text-bar .text-track{direction:rtl}
 @media(max-width:520px){
   .filters.filters-basic,.filters.filters-full{grid-template-columns:1fr}
 }
