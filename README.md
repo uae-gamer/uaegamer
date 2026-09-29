@@ -1,4 +1,6 @@
-# UAEGamer Step 37.9
+# UAEGamer Step 37.9.1
+
+Maintenance screen and wrapping-thumbnail refinements. See `STEP37-9-1-CHANGES.md`. If coming from Step 37.8.1, also follow `STEP37-9-DEPLOY.md` and run `STEP37-9-SQL.sql`.
 
 Adds Basic / Retro Controller / UAE Flag theme selection, a single-row catalog thumbnail preview, aligned card actions, and maintenance mode. Run `STEP37-9-SQL.sql` and read `STEP37-9-DEPLOY.md` before deploying.
 
