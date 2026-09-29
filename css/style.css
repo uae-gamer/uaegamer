@@ -1027,14 +1027,12 @@ html.uae-flag-theme .product-badges .status-pill.out{background:#ffe4e5;color:#9
 html.uae-flag-theme .product-badges .status-pill.coming{background:#fff0d5;color:#76500f;border-color:#a27520}
 html.uae-flag-theme[data-theme="dark"] .product-badges .product-pill{color:#101712}
 
-/* One row of thumbnails; hidden items have an explicit product-page link. */
+/* Product thumbnails wrap into additional rows inside the card. */
 .modern-product-card{height:100%}
 .modern-product-card .product-card-body{flex:1}
 .modern-product-card .product-card-body .product-actions{margin-top:auto}
-.modern-product-card .product-thumbnails{overflow:hidden;scrollbar-width:none;flex-wrap:nowrap;padding:1px 0 3px}
-.modern-product-card .product-thumbnail{flex:0 0 54px}
-.modern-product-card .product-thumbnail[hidden],.more-product-images[hidden]{display:none!important}
-.more-product-images{display:block;text-align:center;margin-top:5px;font-size:.86rem;font-weight:700}
+.modern-product-card .product-thumbnails{overflow:visible;flex-wrap:wrap;padding:1px 0 3px}
+.modern-product-card .product-thumbnail{width:44px;min-width:44px;height:44px;flex:0 0 44px}
 
 body.maintenance-active header,body.maintenance-active footer{display:none!important}
 .maintenance-panel{max-width:660px;margin:12vh auto;padding:28px;text-align:center}
