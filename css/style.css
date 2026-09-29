@@ -990,6 +990,57 @@ html.retro-controller-theme .header-home-button.btn.primary:active{
 @media(max-width:800px){
   .filters.filters-basic,.filters.filters-full{grid-template-columns:1fr 1fr}
 }
+
+/* Step 37.9 — UAE flag theme. Tokens change with the existing Light/Dark control. */
+html.uae-flag-theme[data-theme="light"] body{
+  --primary:#006b38;--bg:#f4f7f4;--card:#fff;--text:#151b18;
+  --desc:#495950;--border:#a7b9ac;--nav:#f0f6f1;
+  --soft:#e7f2ea;--danger:#c82333;--success:#006b38;--warn:#8a5012;
+  --radius:8px;--shadow:0 5px 18px rgba(0,55,26,.12);
+}
+html.uae-flag-theme[data-theme="dark"] body{
+  --primary:#41b978;--bg:#101714;--card:#1b2520;--text:#f7fbf8;
+  --desc:#c2d3c8;--border:#53665a;--nav:#27352c;
+  --soft:#273d2e;--danger:#ff777d;--success:#74d69a;--warn:#ffd287;
+  --radius:8px;--shadow:0 5px 18px rgba(0,0,0,.35);
+}
+html.uae-flag-theme header{border-top:6px solid #ce202f}
+html.uae-flag-theme .main-nav,html.uae-flag-theme .sub-nav,
+html.uae-flag-theme .footer-panel{border-top:3px solid #006b38}
+html.uae-flag-theme .btn,html.uae-flag-theme .mini{
+  border-width:2px;transition:background .15s ease,color .15s ease,transform .1s ease;
+}
+html.uae-flag-theme .btn.primary,html.uae-flag-theme .btn.success,
+html.uae-flag-theme .mini.active,html.uae-flag-theme .main-nav .btn.active{
+  background:#006b38;border-color:#00552d;color:#fff;
+}
+html.uae-flag-theme .btn.primary:hover,html.uae-flag-theme .btn.success:hover,
+html.uae-flag-theme .mini.active:hover,html.uae-flag-theme .main-nav .btn.active:hover{
+  background:#ad1d2b;border-color:#891823;color:#fff;
+}
+html.uae-flag-theme .btn.secondary{background:#202a24;border-color:#101712;color:#fff}
+html.uae-flag-theme .btn.secondary:hover{background:#ad1d2b;border-color:#891823}
+html.uae-flag-theme .aed-estimate,html.uae-flag-theme .approx-aed{color:var(--desc)}
+html.uae-flag-theme .product-badges .discount-pill{background:#f6dd60;color:#20200f;border-color:#b59a36}
+html.uae-flag-theme .product-badges .status-pill.in{background:#ddf4e5;color:#075b2d;border-color:#006b38}
+html.uae-flag-theme .product-badges .status-pill.out{background:#ffe4e5;color:#9e1524;border-color:#c82333}
+html.uae-flag-theme .product-badges .status-pill.coming{background:#fff0d5;color:#76500f;border-color:#a27520}
+html.uae-flag-theme[data-theme="dark"] .product-badges .product-pill{color:#101712}
+
+/* One row of thumbnails; hidden items have an explicit product-page link. */
+.modern-product-card{height:100%}
+.modern-product-card .product-card-body{flex:1}
+.modern-product-card .product-card-body .product-actions{margin-top:auto}
+.modern-product-card .product-thumbnails{overflow:hidden;scrollbar-width:none;flex-wrap:nowrap;padding:1px 0 3px}
+.modern-product-card .product-thumbnail{flex:0 0 54px}
+.modern-product-card .product-thumbnail[hidden],.more-product-images[hidden]{display:none!important}
+.more-product-images{display:block;text-align:center;margin-top:5px;font-size:.86rem;font-weight:700}
+
+body.maintenance-active header,body.maintenance-active footer{display:none!important}
+.maintenance-panel{max-width:660px;margin:12vh auto;padding:28px;text-align:center}
+.maintenance-panel h1{font-family:var(--header-font);margin-top:0}
+.maintenance-panel p{white-space:pre-wrap;line-height:1.6}
+.maintenance-panel .btn{margin-top:12px}
 @media(max-width:520px){
   .filters.filters-basic,.filters.filters-full{grid-template-columns:1fr}
 }
