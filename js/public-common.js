@@ -145,7 +145,9 @@ window.PublicSite = {
     root.dir = this.state.lang === 'ar' ? 'rtl' : 'ltr';
     root.dataset.theme = this.state.theme;
     document.body.classList.toggle('dark', this.state.theme === 'dark');
-    root.classList.toggle('retro-controller-theme', s.retro_theme_enabled === true);
+    const visualTheme = s.visual_theme || (s.retro_theme_enabled === true ? 'retro' : 'basic');
+    root.classList.toggle('retro-controller-theme', visualTheme === 'retro');
+    root.classList.toggle('uae-flag-theme', visualTheme === 'uae');
 
     root.style.setProperty('--primary', s.theme_color || '#0066cc');
     root.style.setProperty('--base-font-size', this.cssSize(s.font_size, '14px'));
@@ -407,12 +409,30 @@ window.PublicSite = {
     try {
       await Promise.all([
         this.loadSettings(),
-        this.loadAuth()
+        this.loadAuth().catch(error => {
+          console.error('Authentication check failed:', error);
+          this.state.user = null;
+          this.state.profile = null;
+        })
       ]);
       this.applyAppearance();
+      if (this.state.settings?.maintenance_mode === true && this.state.profile?.role !== 'admin') {
+        const ar = this.state.lang === 'ar';
+        const message = String((ar ? this.state.settings.maintenance_message_ar : this.state.settings.maintenance_message) || '').trim()
+          || (ar ? 'الموقع تحت الصيانة حالياً. سنعود قريباً.' : 'The website is under maintenance. We will be back soon.');
+        document.body.classList.add('maintenance-active');
+        const main = document.querySelector('main');
+        if (main) main.innerHTML = `<section class="panel maintenance-panel" role="status">
+          <h1>${ar ? 'الموقع تحت الصيانة' : 'Website Under Maintenance'}</h1>
+          <p>${this.esc(message)}</p>
+          <a class="btn" href="./index.html#login">${ar ? 'دخول المسؤول' : 'Admin sign in'}</a>
+        </section>`;
+        return false;
+      }
       this.renderNav();
       this.renderSocialLinks();
       await this.footer();
+      return true;
     } finally {
       document.documentElement.classList.add('app-ready');
     }

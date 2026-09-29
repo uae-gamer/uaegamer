@@ -2496,15 +2496,25 @@ window.Admin = {
             </select></div>
         </div>
 
-        <div class="form-group retro-theme-setting">
-          <label>
-            <input name="retro_theme_enabled" type="checkbox" style="width:auto" ${data.retro_theme_enabled?'checked':''}>
-            Enable Retro Controller Theme Globally
-          </label>
-          <small class="muted">
-            Applies the controller-inspired cream, charcoal, plum and muted-navy visual theme to the website.
-            This changes appearance only; website features and workflows remain unchanged.
-          </small>
+        <div class="form-group">
+          <label>Global Website Theme</label>
+          <select name="visual_theme">
+            <option value="basic" ${(data.visual_theme || (data.retro_theme_enabled ? 'retro' : 'basic'))==='basic'?'selected':''}>Basic</option>
+            <option value="retro" ${(data.visual_theme || (data.retro_theme_enabled ? 'retro' : 'basic'))==='retro'?'selected':''}>Retro Controller</option>
+            <option value="uae" ${data.visual_theme==='uae'?'selected':''}>UAE Flag</option>
+          </select>
+          <small class="muted">Both custom themes support Light and Dark mode.</small>
+        </div>
+
+        <div class="form-group">
+          <label class="check-line"><input name="maintenance_mode" type="checkbox" style="width:auto" ${data.maintenance_mode?'checked':''}> Enable Maintenance Mode</label>
+          <small class="muted">Visitors and customers see the message below. Administrators can sign in and browse normally. New orders are blocked while maintenance is active.</small>
+        </div>
+        <div class="bilingual">
+          <div class="form-group"><label>Maintenance Message - English</label>
+            <textarea name="maintenance_message" maxlength="1000" rows="3" placeholder="We will be back soon.">${Store.esc(data.maintenance_message||'')}</textarea></div>
+          <div class="form-group"><label>Maintenance Message - Arabic</label>
+            <textarea name="maintenance_message_ar" dir="rtl" maxlength="1000" rows="3" placeholder="سنعود قريباً.">${Store.esc(data.maintenance_message_ar||'')}</textarea></div>
         </div>
 
         <div class="form-group">
@@ -2899,14 +2909,14 @@ window.Admin = {
     const settingsSectionKeys = {
       general: new Set(['site_name','site_name_ar','site_description','site_description_ar','default_language']),
       branding: new Set([
-        'header_type','header_button_text','header_button_text_ar','logo_url','theme_color','theme_mode','retro_theme_enabled',
+        'header_type','header_button_text','header_button_text_ar','logo_url','theme_color','theme_mode','visual_theme',
         'font_family','font_family_ar','font_size','header_title_font_family',
         'header_title_font_family_ar','header_title_font_size',
         'gradient_color_1','gradient_color_2','gradient_color_3','gradient_color_4','gradient_color_5',
         'favicon_upload','remove_favicon'
       ]),
       catalog: new Set(['show_sort_items_per_page']),
-      features: new Set(['show_stats','show_notification_button']),
+      features: new Set(['show_stats','show_notification_button','maintenance_mode','maintenance_message','maintenance_message_ar']),
       email: new Set([
         'require_verified_email_for_checkout','require_verification_for_email_change',
         'email_from_name','email_from_address','admin_notification_email',
@@ -3331,7 +3341,7 @@ window.Admin = {
       payload.paypal_card_payments_enabled = fd.has('paypal_card_payments_enabled');
       payload.require_verified_email_for_checkout = fd.has('require_verified_email_for_checkout');
       payload.require_verification_for_email_change = fd.has('require_verification_for_email_change');
-      payload.retro_theme_enabled = fd.has('retro_theme_enabled');
+      payload.maintenance_mode = fd.has('maintenance_mode');
       payload.allow_guest_checkout = fd.has('allow_guest_checkout');
       payload.show_sort_items_per_page = fd.has('show_sort_items_per_page');
 

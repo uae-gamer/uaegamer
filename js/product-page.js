@@ -252,7 +252,7 @@ window.ProductPage = {
 
   async start() {
     try {
-      await PublicSite.init();
+      if (!await PublicSite.init()) return;
       await this.loadProduct();
     } catch (e) {
       console.error(e);

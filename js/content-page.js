@@ -11,6 +11,7 @@ window.ContentPage = {
 
   async load() {
     const cfg = this.config();
+    if (!['pages','guide_pages'].includes(cfg.source)) throw new Error('Unsupported page source.');
     let query = db.from(cfg.source).select('*');
 
     if (cfg.key) query = query.eq('page_key', cfg.key);
@@ -35,7 +36,7 @@ window.ContentPage = {
 
   async start() {
     try {
-      await PublicSite.init();
+      if (!await PublicSite.init()) return;
       await this.load();
     } catch (e) {
       console.error(e);
