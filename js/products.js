@@ -356,6 +356,10 @@ window.Products = {
                   <img loading="lazy" src="${Store.escAttr(img.image_url)}" alt="">
                 </button>
               `).join('')}
+              <a class="product-thumbnail thumbnail-more" href="./product.html?id=${encodeURIComponent(p.id)}"
+                 aria-label="${Store.state.lang==='ar'?'عرض جميع صور المنتج':'View all product images'}" hidden>
+                <img alt=""><span class="thumbnail-more-overlay" aria-hidden="true">+</span>
+              </a>
             </div>
           ` : ''}
         </div>
@@ -393,11 +397,34 @@ window.Products = {
   },
 
   bindCards() {
+    this.thumbnailObserver?.disconnect();
+    const fitThumbnails = row => {
+      if (!row.isConnected || !row.clientWidth) return;
+      const thumbnails = [...row.querySelectorAll('button.product-thumbnail')];
+      const more = row.querySelector('.thumbnail-more');
+      const capacity = Math.max(1, Math.floor((row.clientWidth + 6) / 50));
+      const overflow = thumbnails.length > capacity;
+      const visibleCount = overflow ? capacity - 1 : thumbnails.length;
+      thumbnails.forEach((thumbnail, index) => { thumbnail.hidden = index >= visibleCount; });
+      more.hidden = !overflow;
+      if (overflow) more.querySelector('img').src = thumbnails[visibleCount].dataset.imageUrl;
+    };
+    const rows = [...document.querySelectorAll('.modern-product-card .product-thumbnails')];
+    rows.forEach(fitThumbnails);
+    if (typeof ResizeObserver !== 'undefined') {
+      this.thumbnailObserver = new ResizeObserver(entries => entries.forEach(entry => fitThumbnails(entry.target)));
+      rows.forEach(row => this.thumbnailObserver.observe(row));
+    } else {
+      if (this.thumbnailResizeHandler) window.removeEventListener('resize', this.thumbnailResizeHandler);
+      this.thumbnailResizeHandler = () => rows.forEach(fitThumbnails);
+      window.addEventListener('resize', this.thumbnailResizeHandler, {passive:true});
+    }
+
     document.querySelectorAll('.add').forEach(button => {
       button.onclick = () => Cart.add(button.dataset.id);
     });
 
-    document.querySelectorAll('.product-thumbnail').forEach(button => {
+    document.querySelectorAll('button.product-thumbnail').forEach(button => {
       button.onclick = () => {
         const productId = button.dataset.productId;
         const imageUrl = button.dataset.imageUrl;
