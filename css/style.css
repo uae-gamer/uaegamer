@@ -1057,3 +1057,17 @@ html[dir="rtl"] .text-bar .text-track{direction:rtl}
 @media(max-width:520px){
   .filters.filters-basic,.filters.filters-full{grid-template-columns:1fr}
 }
+
+/* Step 37.10: consistent linked header text, guides and category tabs. */
+html.retro-controller-theme a.public-brand-link,
+html.retro-controller-theme[data-theme="dark"] a.public-brand-link{color:var(--text)}
+.operation-guide-button.btn{background:#146d7e;border-color:#0d5260;color:#fff}
+.operation-guide-button.btn:hover{background:#0d5260;border-color:#093e48;color:#fff}
+html.retro-controller-theme .operation-guide-button.btn{background:var(--retro-navy);border-color:#17243c;color:#fff}
+html.retro-controller-theme .operation-guide-button.btn:hover{background:#17243c;color:#fff}
+html.uae-flag-theme .operation-guide-button.btn{background:#a91d2d;border-color:#821323;color:#fff}
+html.uae-flag-theme .operation-guide-button.btn:hover{background:#821323;color:#fff}
+.thumbnail-more-overlay{background:color-mix(in srgb,var(--primary) 55%,transparent);color:rgba(255,255,255,.8)}
+.thumbnail-more:hover .thumbnail-more-overlay{background:color-mix(in srgb,var(--primary) 70%,transparent);color:#fff}
+.included-category-tabs{display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin:12px 0}
+.included-category-tabs .btn{max-width:100%;overflow-wrap:anywhere}
