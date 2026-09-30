@@ -23,6 +23,11 @@ window.ProductPage = {
     if (iError) throw iError;
 
     this.product = product;
+    this.guideVisible = false;
+    if (product.operation_guide_id) {
+      const guide = await db.from('operation_guides').select('id').eq('id',product.operation_guide_id).eq('enabled',true).maybeSingle();
+      this.guideVisible = Boolean(guide.data);
+    }
     this.images = images || [];
 
     const [categoryRes,typeRes] = await Promise.all([
@@ -96,6 +101,7 @@ window.ProductPage = {
             <button id="detail-included" class="btn">${PublicSite.ui('Included Content','المحتويات المشمولة')}</button>
             ${canBuy ? `<button id="detail-add" class="btn primary">${PublicSite.ui('Add to Cart','أضف إلى السلة')}</button>` : `<button class="btn" disabled>${PublicSite.ui('Unavailable','غير متاح')}</button>`}
             <a class="btn secondary back-store" href="./index.html#home">${PublicSite.ui('Back to Store','العودة إلى المتجر')}</a>
+            ${this.guideVisible ? `<a class="btn operation-guide-button" href="./content.html?source=operation_guides&id=${encodeURIComponent(p.operation_guide_id)}">${PublicSite.ui('Operation Guide','تعليمات التشغيل')}</a>` : ''}
             <button id="share-product" class="btn secondary">${PublicSite.ui('Share Product','مشاركة المنتج')}</button>
           </div>
 
@@ -157,7 +163,15 @@ window.ProductPage = {
     }
   },
 
-  async loadIncluded(page=1, search=this.includedSearch) {
+  async loadIncluded(page=1, search=this.includedSearch, category=this.includedCategory ?? '*') {
+    this.includedCategory=category;
+    const request=this.includedRequest=(this.includedRequest||0)+1;
+    let groups;
+    try {groups=await IncludedCategories.load(this.product.id);} catch(error){
+      document.getElementById('detail-included-section').classList.remove('hidden');
+      document.getElementById('detail-included-body').textContent=error.message;return;
+    }
+    if(request!==this.includedRequest)return;
     const per = 25;
     const term = String(search || '').trim();
     this.includedSearch = term;
@@ -170,9 +184,11 @@ window.ProductPage = {
       .order('sort_order')
       .range(from,to);
 
+    query = IncludedCategories.apply(query,category);
     if (term) query = query.ilike('name',`%${term}%`);
 
     const {data,error,count} = await query;
+    if(request!==this.includedRequest)return;
     if (error) {
       document.getElementById('detail-included-body').innerHTML = `<div class="alert err">${PublicSite.esc(error.message)}</div>`;
       return;
@@ -187,6 +203,7 @@ window.ProductPage = {
     const ar = PublicSite.state.lang === 'ar';
 
     document.getElementById('detail-included-body').innerHTML = `
+      ${IncludedCategories.html(groups,category,PublicSite.state.lang,PublicSite.escAttr)}
       <div class="form-group">
         <input id="detail-content-search" type="search"
                placeholder="${ar ? 'ابحث في المحتويات المشمولة…' : 'Search Included Content…'}"
@@ -208,6 +225,7 @@ window.ProductPage = {
       </div>` : ''}
     `;
 
+    document.querySelectorAll('.included-category-tab').forEach(b=>b.onclick=()=>this.loadIncluded(1,'',b.dataset.category));
     let timer;
     document.getElementById('detail-content-search')?.addEventListener('input',event => {
       clearTimeout(timer);

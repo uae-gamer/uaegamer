@@ -49,6 +49,10 @@ window.Products = {
   async loadImagesForProducts(products) {
     const ids = (products || []).map(p => p.id).filter(Boolean);
     if (!ids.length) return;
+    const guideRefs = await db.from('products').select('id,operation_guide_id,operation_guides(id,enabled)').in('id',ids);
+    if (guideRefs.error) console.error('Guide lookup failed:',guideRefs.error);
+    const guides = new Map((guideRefs.data||[]).filter(x=>x.operation_guides?.enabled).map(x=>[x.id,x.operation_guide_id]));
+    products.forEach(p=>{p.operation_guide_id=guides.get(p.id)||null;});
 
     const result = await Store.withTimeout(
       db.from('product_images')
@@ -427,6 +431,7 @@ window.Products = {
               : `<button class="btn" disabled>${p.status==='coming_soon'?t('coming'):t('out')}</button>`}
             <a class="btn secondary product-details-link"
                href="./product.html?id=${encodeURIComponent(p.id)}">${t('viewDetails')}</a>
+            ${p.operation_guide_id ? `<a class="btn operation-guide-button" href="./content.html?source=operation_guides&id=${encodeURIComponent(p.operation_guide_id)}">${Store.state.lang==='ar'?'تعليمات التشغيل':'Operation Guide'}</a>` : ''}
           </div>
         </div>
       </article>
@@ -557,10 +562,15 @@ window.Products = {
     });
   },
 
-  async showIncluded(productId, page = 1, search = '') {
+  async showIncluded(productId, page = 1, search = '', category=this.includedSelections?.[productId] ?? '*') {
     const product = (Store.state.products || []).find(x => x.id === productId);
     if (!product) return;
 
+    this.includedSelections ||= {}; this.includedSelections[productId]=category;
+    const request = this.includedRequest = (this.includedRequest||0)+1;
+    let groups;
+    try {groups=await IncludedCategories.load(productId);} catch(error){Store.alert(error.message,'err');return;}
+    if(request!==this.includedRequest)return;
     const per = 25;
     const term = String(search || '').trim();
     const from = (page - 1) * per;
@@ -578,9 +588,11 @@ window.Products = {
       .order('sort_order', { ascending:true })
       .range(from, to);
 
+    query = IncludedCategories.apply(query,category);
     if (term) query = query.ilike('name', `%${term}%`);
 
     const { data, error, count } = await query;
+    if(request!==this.includedRequest)return;
     if (error) {
       Store.modal(`<div class="alert err">${Store.esc(error.message)}</div>`);
       return;
@@ -594,6 +606,7 @@ window.Products = {
     Store.modal(`
       <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
       <h3 style="text-align:center">${t('included')} (${total.toLocaleString()})</h3>
+      ${IncludedCategories.html(groups,category,Store.state.lang,Store.escAttr)}
 
       <div class="form-group">
         <input id="public-included-search" type="search"
@@ -621,6 +634,7 @@ window.Products = {
         </div>` : ''}
     `);
 
+    document.querySelectorAll('.included-category-tab').forEach(b=>b.onclick=()=>this.showIncluded(productId,1,'',b.dataset.category));
     let timer;
     document.getElementById('public-included-search')?.addEventListener('input', event => {
       clearTimeout(timer);

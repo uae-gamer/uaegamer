@@ -16,6 +16,7 @@ window.Admin = {
     ['messages','Contact Messages'],
     ['pages','Footer Pages'],
     ['guides','Custom Pages'],
+    ['operationGuides','Operation Guides'],
     ['settings','Site Settings'],
     ['csv','CSV Data']
   ],
@@ -152,6 +153,13 @@ window.Admin = {
           </div>
         </div>
 
+        <div class="form-group"><label>Operation Guide (optional)</label>
+          <select name="operation_guide_id"><option value="">No guide</option>
+            ${(this.operationGuideRows||[]).map(g=>`<option value="${Store.escAttr(g.id)}" ${p.operation_guide_id===g.id?'selected':''}>${Store.esc(g.title)}${g.enabled?'':' (Disabled)'}</option>`).join('')}
+          </select>
+          <a href="#admin/operationGuides">Create, edit or copy an Operation Guide</a>
+          <small class="muted">Editing a shared guide updates every item that uses it. Copy a guide first to make an independent version.</small>
+        </div>
         <div class="form-group">
           <label>PayPal Link</label>
           <input name="paypal_link" type="url" value="${Store.escAttr(p.paypal_link||'')}">
@@ -177,6 +185,9 @@ window.Admin = {
   },
 
   async items(editId=null, page=1, search='') {
+    const guideResult = await db.from('operation_guides').select('id,title,enabled').order('title');
+    if (guideResult.error) return this.err(guideResult.error);
+    this.operationGuideRows = guideResult.data || [];
     const perPage = this.pageSizes.items;
     const offset = (page - 1) * perPage;
     const term = String(search || '').trim();
@@ -272,6 +283,7 @@ window.Admin = {
           ? Number(fd.get('discounted_price_usd')) : null,
         stock_quantity: Math.max(0, Number(fd.get('stock_quantity')||0)),
         status: fd.get('status'),
+        operation_guide_id: fd.get('operation_guide_id') || null,
         category_id: fd.get('category_id') || null,
         type_id: fd.get('type_id') || null,
         paypal_link: String(fd.get('paypal_link')||'').trim() || null,
@@ -433,11 +445,13 @@ window.Admin = {
 
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Content</th><th>Order</th><th>Action</th></tr></thead>
+            <thead><tr><th>Content</th><th>Category</th><th>Category Arabic</th><th>Order</th><th>Action</th></tr></thead>
             <tbody>
               ${rows.map(row => `
                 <tr>
                   <td><input class="content-name" data-id="${row.id}" value="${Store.escAttr(row.name||'')}"></td>
+                  <td><input class="content-category" data-id="${row.id}" value="${Store.escAttr(row.category||'')}"></td>
+                  <td><input class="content-category-ar" data-id="${row.id}" dir="rtl" value="${Store.escAttr(row.category_ar||'')}"></td>
                   <td><input class="content-order" data-id="${row.id}" type="number" value="${Number(row.sort_order||0)}"></td>
                   <td>
                     <button class="btn danger delete-content" data-id="${row.id}">Delete</button>
@@ -491,6 +505,8 @@ window.Admin = {
           return {
             id,
             name: nameField.value.trim(),
+            category:listHost.querySelector(`.content-category[data-id="${CSS.escape(id)}"]`)?.value.trim()||'',
+            category_ar:listHost.querySelector(`.content-category-ar[data-id="${CSS.escape(id)}"]`)?.value.trim()||null,
             sort_order: Number(orderField?.value || 0)
           };
         });
@@ -566,6 +582,8 @@ window.Admin = {
 
         <form id="content-form" class="inline-admin-form">
           <input name="name" placeholder="Included Content name" required>
+          <input name="category" placeholder="Category (optional)">
+          <input name="category_ar" dir="rtl" placeholder="Category Arabic (optional)">
           <input name="sort_order" type="number" placeholder="Order (auto if blank)">
           <button class="btn success">Add Included Content</button>
         </form>
@@ -796,11 +814,12 @@ window.Admin = {
         .select('id')
         .eq('product_id', productId)
         .ilike('name', name)
+        .eq('category',String(fd.get('category')||'').trim())
         .limit(1);
 
       if (existing.error) return this.err(existing.error);
       if (existing.data?.length) {
-        return this.err(new Error('This Included Content name already exists for this product.'));
+        return this.err(new Error('This Included Content name already exists in this category.'));
       }
 
       let sortOrder = Number(fd.get('sort_order'));
@@ -817,6 +836,8 @@ window.Admin = {
 
       const result = await db.from('included_content').insert({
         product_id: productId,
+        category:String(fd.get('category')||'').trim(),
+        category_ar:String(fd.get('category_ar')||'').trim()||null,
         name,
         name_ar: null,
         sort_order: sortOrder
@@ -839,7 +860,7 @@ window.Admin = {
     document.getElementById('download-included-template').onclick = () => {
       this.downloadCsv(
         'included-content-template.csv',
-        ['name','sort_order'],
+        ['name','sort_order','category','category_ar'],
         [
           { name:'Example Content 1', sort_order:1 },
           { name:'Example Content 2', sort_order:2 }
@@ -859,6 +880,8 @@ window.Admin = {
         const rows = this.parseCsv(await file.text())
           .map(row => ({
             name: String(row.name || '').trim(),
+            category:String(row.category||'').trim(),
+            category_ar:String(row.category_ar||'').trim()||null,
             sort_order: String(row.sort_order || '').trim()
           }))
           .filter(row => row.name);
@@ -884,7 +907,7 @@ window.Admin = {
       const file = csvInput.files?.[0];
       if (!file) return;
 
-      if (!confirm('Import this CSV into the current product? Exact duplicate names will be skipped.')) return;
+      if (!confirm('Import this CSV into the current product? Duplicate names within the same category will be skipped.')) return;
 
       importButton.disabled = true;
       csvInput.disabled = true;
@@ -893,18 +916,18 @@ window.Admin = {
         const parsed = this.parseCsv(await file.text())
           .map(row => ({
             name: String(row.name || '').trim(),
+            category:String(row.category||'').trim(),
+            category_ar:String(row.category_ar||'').trim()||null,
             sort_order: String(row.sort_order || '').trim()
           }))
           .filter(row => row.name);
 
-        const existingRes = await db.from('included_content')
-          .select('name,sort_order')
-          .eq('product_id', productId);
+        const existingRes = await this.readAllRows('included_content','name,sort_order,category',productId);
 
         if (existingRes.error) throw existingRes.error;
 
         const existingNames = new Set(
-          (existingRes.data || []).map(row => String(row.name||'').trim().toLowerCase())
+          (existingRes.data || []).map(row => JSON.stringify([String(row.name||'').trim().toLowerCase(),row.category||'']))
         );
 
         const seen = new Set();
@@ -917,7 +940,7 @@ window.Admin = {
         const ready = [];
 
         for (const row of parsed) {
-          const key = row.name.toLowerCase();
+          const key = JSON.stringify([row.name.toLowerCase(),row.category]);
 
           if (existingNames.has(key) || seen.has(key)) {
             skipped++;
@@ -935,6 +958,7 @@ window.Admin = {
           ready.push({
             product_id: productId,
             name: row.name,
+            category:row.category,category_ar:row.category_ar,
             name_ar: null,
             sort_order: sortOrder
           });
@@ -2328,6 +2352,60 @@ window.Admin = {
     `;
   },
 
+  async readAllRows(table,columns='*',productId=null) {
+    const data=[];
+    for(let offset=0;;offset+=500){
+      let q=db.from(table).select(columns).order('id').range(offset,offset+499);
+      if(productId)q=q.eq('product_id',productId);
+      const result=await q;if(result.error)return {data:null,error:result.error};
+      data.push(...(result.data||[]));if((result.data||[]).length<500)break;
+    }
+    return {data,error:null};
+  },
+
+  async operationGuides(editId=null) {
+    const {data:guides,error}=await db.from('operation_guides').select('*').order('title');
+    if(error) return this.err(error);
+    const g=(guides||[]).find(x=>x.id===editId)||{};
+    const uses=await db.from('products').select('id,title,operation_guide_id').not('operation_guide_id','is',null);
+    if(uses.error) return this.err(uses.error);
+    document.getElementById('admin-body').innerHTML=`
+      <h2>Operation Guides</h2><p class="muted">Create a guide here, then assign it in the listed item editor. Editing a shared guide updates every linked item. Copy it for an independent version.</p>
+      <form id="operation-guide-form" class="panel">
+        <h3>${g.id?'Edit Guide':'Create Guide'}</h3>
+        <div class="bilingual"><div class="form-group"><label>Title - English</label><input name="title" required value="${Store.escAttr(g.title||'')}"></div>
+        <div class="form-group"><label>Title - Arabic</label><input name="title_ar" dir="rtl" value="${Store.escAttr(g.title_ar||'')}"></div></div>
+        <div class="bilingual"><div class="form-group"><label>HTML Content - English</label><textarea name="content" rows="12">${Store.esc(g.content||'')}</textarea></div>
+        <div class="form-group"><label>HTML Content - Arabic</label><textarea name="content_ar" dir="rtl" rows="12">${Store.esc(g.content_ar||'')}</textarea></div></div>
+        <label><input name="enabled" type="checkbox" style="width:auto" ${g.enabled===false?'':'checked'}> Enabled</label>
+        <button class="btn success">Save Guide</button><button type="button" id="guide-preview" class="btn">Preview HTML</button>
+        ${g.id?'<button type="button" id="guide-cancel" class="btn">Cancel</button>':''}
+      </form>
+      ${(guides||[]).map(x=>`<section class="panel"><h3>${Store.esc(x.title)} ${x.enabled?'':'(Disabled)'}</h3>
+        <p>Used by: ${(uses.data||[]).filter(p=>p.operation_guide_id===x.id).map(p=>Store.esc(p.title)).join(', ')||'No items yet'}</p>
+        <button class="btn edit-guide" data-id="${x.id}">Edit</button><button class="btn copy-guide" data-id="${x.id}">Copy</button><button class="btn danger delete-guide" data-id="${x.id}">Delete</button></section>`).join('')}`;
+    const form=document.getElementById('operation-guide-form');
+    form.onsubmit=async event=>{
+      event.preventDefault();const fd=new FormData(form);
+      const payload={title:String(fd.get('title')||'').trim(),title_ar:String(fd.get('title_ar')||'').trim()||null,content:String(fd.get('content')||''),content_ar:String(fd.get('content_ar')||'')||null,enabled:fd.has('enabled')};
+      if(!payload.title) return this.err(new Error('Title is required.'));
+      const r=g.id?await db.from('operation_guides').update(payload).eq('id',g.id):await db.from('operation_guides').insert(payload);
+      if(r.error)return this.err(r.error);Store.alert('Operation Guide saved.');await this.operationGuides();
+    };
+    document.getElementById('guide-preview').onclick=()=>{const fd=new FormData(form);Store.modal(`<h2>English</h2>${Store.sanitizeHtml(fd.get('content'))}<h2>Arabic</h2><div dir="rtl">${Store.sanitizeHtml(fd.get('content_ar'))}</div>`)};
+    document.getElementById('guide-cancel')?.addEventListener('click',()=>this.operationGuides());
+    document.querySelectorAll('.edit-guide').forEach(b=>b.onclick=()=>this.operationGuides(b.dataset.id));
+    document.querySelectorAll('.copy-guide').forEach(b=>b.onclick=async()=>{
+      const source=(guides||[]).find(x=>x.id===b.dataset.id);
+      const {id,created_at,...copy}=source;copy.title+=' (Copy)';
+      const r=await db.from('operation_guides').insert(copy).select('id').single();if(r.error)return this.err(r.error);await this.operationGuides(r.data.id);
+    });
+    document.querySelectorAll('.delete-guide').forEach(b=>b.onclick=async()=>{
+      if(!confirm('Delete this guide and remove its button from every linked item?'))return;
+      const r=await db.from('operation_guides').delete().eq('id',b.dataset.id);if(r.error)return this.err(r.error);await this.operationGuides();
+    });
+  },
+
   pages() {
     return this.manageContentPages('pages','Footer Pages');
   },
@@ -3537,23 +3615,23 @@ window.Admin = {
     `;
 
     document.getElementById('export-items').onclick = async () => {
-      const { data, error } = await db.from('products').select('*').order('sort_order');
+      const { data, error } = await this.readAllRows('products');
       if (error) return this.err(error);
 
       const headers = [
         'id','title','title_ar','description','description_ar',
         'price_usd','discounted_price_usd','stock_quantity','status',
-        'paypal_link','category_id','type_id','sort_order','active'
+        'paypal_link','category_id','type_id','sort_order','active','operation_guide_id'
       ];
       this.downloadCsv(`listed_items_export_${new Date().toISOString().slice(0,10)}.csv`, headers, data||[]);
       Store.alert('Listed Items CSV exported.');
     };
 
     document.getElementById('export-content').onclick = async () => {
-      const { data, error } = await db.from('included_content').select('*').order('product_id').order('sort_order');
+      const { data, error } = await this.readAllRows('included_content');
       if (error) return this.err(error);
 
-      const headers = ['id','product_id','name','sort_order'];
+      const headers = ['id','product_id','name','sort_order','category','category_ar'];
       this.downloadCsv(`included_content_export_${new Date().toISOString().slice(0,10)}.csv`, headers, data||[]);
       Store.alert('Included Content CSV exported.');
     };
@@ -3579,6 +3657,7 @@ window.Admin = {
             ? Number(row.discounted_price_usd) : null,
           stock_quantity: Math.max(0, Number(row.stock_quantity||0)),
           status: row.status || 'out_of_stock',
+          ...(Object.hasOwn(row,'operation_guide_id')?{operation_guide_id:row.operation_guide_id||null}:{}),
           paypal_link: row.paypal_link || null,
           category_id: row.category_id || null,
           type_id: row.type_id || null,
@@ -3621,6 +3700,8 @@ window.Admin = {
 
         const payload = {
           product_id: row.product_id.trim(),
+          ...(Object.hasOwn(row,'category')?{category:String(row.category||'').trim()}:{}),
+          ...(Object.hasOwn(row,'category_ar')?{category_ar:String(row.category_ar||'').trim()||null}:{}),
           name: row.name,
           name_ar: null,
           sort_order: Number(row.sort_order||0)

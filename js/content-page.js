@@ -11,7 +11,7 @@ window.ContentPage = {
 
   async load() {
     const cfg = this.config();
-    if (!['pages','guide_pages'].includes(cfg.source)) throw new Error('Unsupported page source.');
+    if (!['pages','guide_pages','operation_guides'].includes(cfg.source)) throw new Error('Unsupported page source.');
     let query = db.from(cfg.source).select('*');
 
     if (cfg.key) query = query.eq('page_key', cfg.key);
@@ -21,9 +21,9 @@ window.ContentPage = {
     const {data,error} = await query.single();
     if (error) throw error;
 
-    const title = PublicSite.localized(data,'title');
+    const title = PublicSite.localized(data,'title') || (cfg.source==='operation_guides' ? data.title : '');
     const html = PublicSite.state.lang === 'ar'
-      ? (data.content_ar || '<p>المحتوى العربي غير متوفر حالياً.</p>')
+      ? (data.content_ar || (cfg.source==='operation_guides' ? data.content : '<p>المحتوى العربي غير متوفر حالياً.</p>'))
       : (data.content || '');
 
     document.getElementById('public-page-title').textContent = title;
