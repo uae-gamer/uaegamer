@@ -2662,6 +2662,14 @@ window.Admin = {
 
         <h3>Home and Catalog</h3>
         <div class="form-group">
+          <label for="catalog-desktop-columns">Listed items per row on desktop</label>
+          <select id="catalog-desktop-columns" name="catalog_desktop_columns">
+            <option value="4" ${Number(data.catalog_desktop_columns)!==2?'selected':''}>4 items per row (default)</option>
+            <option value="2" ${Number(data.catalog_desktop_columns)===2?'selected':''}>2 items per row</option>
+          </select>
+          <small class="muted">Applies above 800px screen width. Smaller screens retain 2 columns, and phones up to 520px retain 1 column. Items per page is unchanged.</small>
+        </div>
+        <div class="form-group">
           <label>
             <input name="show_sort_items_per_page" type="checkbox" style="width:auto" ${data.show_sort_items_per_page!==false?'checked':''}>
             Show Sorting and Items Per Page controls on Home
@@ -3047,7 +3055,7 @@ window.Admin = {
         'gradient_color_1','gradient_color_2','gradient_color_3','gradient_color_4','gradient_color_5',
         'favicon_upload','remove_favicon'
       ]),
-      catalog: new Set(['show_sort_items_per_page']),
+      catalog: new Set(['show_sort_items_per_page','catalog_desktop_columns']),
       features: new Set(['show_stats','show_notification_button','maintenance_mode','maintenance_message','maintenance_message_ar']),
       email: new Set([
         'require_verified_email_for_checkout','require_verification_for_email_change',
@@ -3476,6 +3484,7 @@ window.Admin = {
       payload.maintenance_mode = fd.has('maintenance_mode');
       payload.allow_guest_checkout = fd.has('allow_guest_checkout');
       payload.show_sort_items_per_page = fd.has('show_sort_items_per_page');
+      payload.catalog_desktop_columns = Number(fd.get('catalog_desktop_columns'))===2 ? 2 : 4;
 
       const allowedKeys = settingsSectionKeys[settingsSection] || settingsSectionKeys.general;
       for (const key of Object.keys(payload)) {

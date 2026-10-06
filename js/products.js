@@ -297,7 +297,7 @@ window.Products = {
     `;
 
     html += visible.length
-      ? `<div class="products">${visible.map(p => this.card(p)).join('')}</div>`
+      ? `<div class="products ${Number(Store.state.settings?.catalog_desktop_columns)===2?'catalog-two-columns':''}">${visible.map(p => this.card(p)).join('')}</div>`
       : `<div class="card">${t('noItems')}</div>`;
 
     if (pages > 1) {
@@ -358,8 +358,10 @@ window.Products = {
       ? t('coming')
       : (!canBuy ? t('out') : t('inStock'));
 
-    const categories = (p.category_ids || (p.category_id?[p.category_id]:[]))
-      .map(id => (Store.state.categories||[]).find(c=>c.id===id)).filter(Boolean)
+    const assignedCategoryIds = p.category_ids || (p.category_id?[p.category_id]:[]);
+    const categories = (Store.state.categories||[])
+      .filter(c => assignedCategoryIds.includes(c.id))
+      .sort((a,b) => Number(a.sort_order??0)-Number(b.sort_order??0))
       .map(c => Store.state.lang==='ar' ? (c.name_ar||c.name) : c.name);
     const category = categories.length > 0;
 
