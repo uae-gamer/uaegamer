@@ -609,7 +609,7 @@ window.Products = {
     Store.modal(`
       <h2 style="text-align:center">${Store.esc(localize(product,'title'))}</h2>
       <h3 style="text-align:center">${t('included')} (${total.toLocaleString()})</h3>
-      ${IncludedCategories.html(groups,category,Store.state.lang,Store.escAttr)}
+      ${IncludedCategories.html(groups,category,Store.state.lang,value=>Store.escAttr(value))}
 
       <div class="form-group">
         <input id="public-included-search" type="search"

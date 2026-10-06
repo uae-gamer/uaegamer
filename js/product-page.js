@@ -99,7 +99,6 @@ window.ProductPage = {
           <p>${this.statusHtml()}</p>
 
           <div class="product-actions">
-            <button id="detail-included" class="btn">${PublicSite.ui('Included Content','المحتويات المشمولة')}</button>
             ${canBuy ? `<button id="detail-add" class="btn primary">${PublicSite.ui('Add to Cart','أضف إلى السلة')}</button>` : `<button class="btn" disabled>${PublicSite.ui('Unavailable','غير متاح')}</button>`}
             <a class="btn secondary back-store" href="./index.html#home">${PublicSite.ui('Back to Store','العودة إلى المتجر')}</a>
             ${this.guideVisible ? `<a class="btn operation-guide-button" href="./content.html?source=operation_guides&id=${encodeURIComponent(p.operation_guide_id)}">${PublicSite.ui('Operation Guide','تعليمات التشغيل')}</a>` : ''}
@@ -110,13 +109,14 @@ window.ProductPage = {
         </div>
       </div>
 
-      <section id="detail-included-section" class="product-included-section hidden">
+      <section id="detail-included-section" class="product-included-section">
         <h2>${PublicSite.ui('Included Content','المحتويات المشمولة')}</h2>
-        <div id="detail-included-body"></div>
+        <div id="detail-included-body" aria-live="polite">${PublicSite.ui('Loading included content…','جارٍ تحميل المحتويات…')}</div>
       </section>
     `;
 
     this.bind();
+    this.loadIncluded(1);
   },
 
   showImage(index) {
@@ -137,7 +137,6 @@ window.ProductPage = {
     document.querySelectorAll('[data-image-index]').forEach(b => {
       b.onclick = () => this.showImage(Number(b.dataset.imageIndex));
     });
-    document.getElementById('detail-included')?.addEventListener('click', () => this.loadIncluded(1));
     document.getElementById('detail-add')?.addEventListener('click', () => this.addToCart());
     document.getElementById('share-product')?.addEventListener('click', () => this.shareProduct());
   },
@@ -167,11 +166,8 @@ window.ProductPage = {
   async loadIncluded(page=1, search=this.includedSearch, category=this.includedCategory ?? '*') {
     this.includedCategory=category;
     const request=this.includedRequest=(this.includedRequest||0)+1;
-    let groups;
-    try {groups=await IncludedCategories.load(this.product.id);} catch(error){
-      document.getElementById('detail-included-section').classList.remove('hidden');
-      document.getElementById('detail-included-body').textContent=error.message;return;
-    }
+    try {
+    const groups=await IncludedCategories.load(this.product.id);
     if(request!==this.includedRequest)return;
     const per = 25;
     const term = String(search || '').trim();
@@ -183,6 +179,7 @@ window.ProductPage = {
       .select('id,name,sort_order', {count:'exact'})
       .eq('product_id',this.product.id)
       .order('sort_order')
+      .order('id')
       .range(from,to);
 
     query = IncludedCategories.apply(query,category);
@@ -204,7 +201,7 @@ window.ProductPage = {
     const ar = PublicSite.state.lang === 'ar';
 
     document.getElementById('detail-included-body').innerHTML = `
-      ${IncludedCategories.html(groups,category,PublicSite.state.lang,PublicSite.escAttr)}
+      ${IncludedCategories.html(groups,category,PublicSite.state.lang,value=>PublicSite.escAttr(value))}
       <div class="form-group">
         <input id="detail-content-search" type="search"
                placeholder="${ar ? 'ابحث في المحتويات المشمولة…' : 'Search Included Content…'}"
@@ -246,7 +243,13 @@ window.ProductPage = {
       const target = Math.max(1,Math.min(pages,Number(input?.value || 1)));
       this.loadIncluded(target,term);
     });
-    section.scrollIntoView({behavior:'smooth',block:'start'});
+
+    } catch(error) {
+      if(request!==this.includedRequest)return;
+      const body=document.getElementById('detail-included-body');
+      if(body)body.innerHTML=`<div class="alert err">${PublicSite.esc(PublicSite.ui('Unable to load included content. Please refresh and try again.','تعذر تحميل المحتويات. يرجى تحديث الصفحة والمحاولة مرة أخرى.'))}</div>`;
+      console.error(error);
+    }
   },
 
   async addToCart() {
