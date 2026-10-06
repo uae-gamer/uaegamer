@@ -134,13 +134,10 @@ window.Admin = {
 
         <div class="bilingual">
           <div class="form-group">
-            <label>Category</label>
-            <select name="category_id">
-              <option value="">None</option>
-              ${(Store.state.categories||[]).map(x =>
-                `<option value="${x.id}" ${p.category_id===x.id?'selected':''}>${Store.esc(x.name)}</option>`
-              ).join('')}
-            </select>
+            <label>Categories (select any number)</label>
+            <div class="category-checkboxes">
+              ${(Store.state.categories||[]).map(x => `<label><input type="checkbox" name="category_ids" value="${Store.escAttr(x.id)}" ${(p.category_ids || (p.category_id?[p.category_id]:[])).includes(x.id)?'checked':''}> ${Store.esc(x.name)}</label>`).join('') || '<span class="muted">Create categories first.</span>'}
+            </div>
           </div>
           <div class="form-group">
             <label>Type</label>
@@ -284,7 +281,8 @@ window.Admin = {
         stock_quantity: Math.max(0, Number(fd.get('stock_quantity')||0)),
         status: fd.get('status'),
         operation_guide_id: fd.get('operation_guide_id') || null,
-        category_id: fd.get('category_id') || null,
+        category_ids: fd.getAll('category_ids'),
+        category_id: fd.getAll('category_ids')[0] || null,
         type_id: fd.get('type_id') || null,
         paypal_link: String(fd.get('paypal_link')||'').trim() || null,
         sort_order: Number(fd.get('sort_order') || suggestedOrder),
@@ -1216,6 +1214,59 @@ window.Admin = {
   types() { return this.simpleTable('product_types','Types'); },
   textbar() { return this.simpleTable('text_bar','Text Bar','text','text_ar'); },
 
+  async manualOrder() {
+    const {data:products,error} = await this.readAllRows('products');
+    if(error) return this.err(error);
+    const host=document.getElementById('admin-body');
+    host.innerHTML=`<h2>Create Manual Order</h2>
+      <form id="manual-order-form" class="panel">
+      <p>Record a payment already received outside the website. All amounts are in USD, including any delivery or VAT already included in the agreed item price. This records a paid order; it does not charge the customer.</p>
+      <div class="bilingual">
+      <label>Customer name *<input name="name" required maxlength="200"></label>
+      <label>Order date and time *<input name="date" type="datetime-local" required></label>
+      <label>Email (optional)<input name="email" type="email" maxlength="254"></label>
+      <label>Mobile number (optional)<input name="mobile" maxlength="50"></label>
+      <label>Payment method *<select name="method"><option value="bank_transfer">Bank transfer</option><option value="cash">Cash</option><option value="card">External card payment</option><option value="other">Other</option></select></label>
+      <label>Payment reference (optional)<input name="reference" maxlength="250"></label>
+      <label>Order status *<select name="status">${['confirmed','processing','shipped','delivered'].map(s=>`<option>${s}</option>`).join('')}</select></label>
+      </div>
+      <label>Delivery address (optional)<textarea name="address" maxlength="2000"></textarea></label>
+      <label>Admin notes (optional)<textarea name="notes" maxlength="4000"></textarea></label>
+      <h3>Order items</h3><div id="manual-order-lines"></div>
+      <button type="button" id="manual-add-line" class="btn secondary">Add Item</button>
+      <p><strong id="manual-total"></strong></p>
+      <label><input class="manual-stock-input" name="deduct" type="checkbox"> Deduct quantities from current stock</label>
+      <p class="muted">Leave unchecked if stock was already adjusted. These orders appear in reports and statistics using the order date. Customer accounts are not linked automatically. Existing order email settings apply when an email is entered.</p>
+      <button class="btn success" type="submit">Create Paid Order</button>
+      <button class="btn secondary" id="manual-cancel" type="button">Cancel</button></form>`;
+    const form=host.querySelector('form'), lines=host.querySelector('#manual-order-lines');
+    const now=new Date();form.elements.date.value=new Date(now.getTime()-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    const requestId=crypto.randomUUID();
+    const total=()=>{const sum=[...lines.children].reduce((v,row)=>v+Number(row.querySelector('.manual-qty').value)*Number(row.querySelector('.manual-price').value),0);host.querySelector('#manual-total').textContent=`Total: ${sum.toFixed(2)} USD (approximately ${(sum*3.67).toFixed(2)} AED)`;};
+    const add=()=>{
+      if(lines.children.length>=100) return;
+      const row=document.createElement('div');row.className='manual-order-line';
+      row.innerHTML=`<label>Listed item *<select class="manual-product" required><option value="">Select item</option>${products.map(p=>`<option value="${Store.escAttr(p.id)}">${Store.esc(p.title)}${p.active?'':' (Inactive)'}</option>`).join('')}</select></label><label>Quantity *<input class="manual-qty" type="number" min="1" max="10000" step="1" required value="1"></label><label>Unit price USD *<input class="manual-price" type="number" min="0" max="999999" step="0.01" required></label><button class="btn danger" type="button">Remove</button>`;
+      lines.append(row);
+      row.querySelector('select').onchange=()=>{const p=products.find(p=>p.id===row.querySelector('select').value);row.querySelector('.manual-price').value=p?Products.price(p).toFixed(2):'';total();};
+      row.oninput=total;row.querySelector('button').onclick=()=>{row.remove();total();};total();
+    };
+    host.querySelector('#manual-add-line').onclick=add;host.querySelector('#manual-cancel').onclick=()=>this.orders();add();
+    form.onsubmit=async event=>{
+      event.preventDefault();
+      const items=[...lines.children].map(row=>({product_id:row.querySelector('select').value,quantity:Number(row.querySelector('.manual-qty').value),unit_price_usd:Number(row.querySelector('.manual-price').value)}));
+      if(!items.length) return this.err(new Error('Add at least one item.'));
+      if(new Set(items.map(i=>i.product_id)).size!==items.length) return this.err(new Error('Select each item once and adjust its quantity.'));
+      const fd=new FormData(form), btn=form.querySelector('[type="submit"]');
+      Store.setBusy(btn,true,'Creating…');
+      try {
+        const {data,error}=await db.rpc('admin_create_manual_order',{p_request_id:requestId,p_items:items,p_details:{name:String(fd.get('name')).trim(),ordered_at:new Date(fd.get('date')).toISOString(),email:fd.get('email'),mobile:fd.get('mobile'),address:fd.get('address'),method:fd.get('method'),reference:fd.get('reference'),status:fd.get('status'),notes:fd.get('notes'),deduct_stock:fd.has('deduct')}});
+        if(error) throw error;
+        Store.alert(`Paid order #${data.order_number} created.`);await this.orders();
+      } catch(error){this.err(error);} finally {Store.setBusy(btn,false);}
+    };
+  },
+
   async orders(showDeleted=false, page=1) {
     const perPage = this.pageSizes.orders;
     const offset = (page - 1) * perPage;
@@ -1237,6 +1288,7 @@ window.Admin = {
 
     document.getElementById('admin-body').innerHTML = `
       <div class="admin-title-row">
+        <button id="new-manual-order" class="btn success">Create Manual Order</button>
         <h2>${showDeleted ? 'Deleted Orders' : 'Manage Orders'} (${total.toLocaleString()})</h2>
         <button id="toggle-deleted-orders" class="btn secondary">
           ${showDeleted ? 'View Active Orders' : 'View Deleted Orders'}
@@ -1257,6 +1309,7 @@ window.Admin = {
               <strong>${Number(o.total_usd||0).toFixed(2)} USD</strong><br>
               <span class="muted">${o.created_at?new Date(o.created_at).toLocaleString():''}</span><br>
               <span><strong>Payment:</strong> ${Store.esc(o.payment_status || 'unpaid')}</span>
+              ${o.manual_request_id ? `<br><small>Manual order • ${Store.esc(o.payment_method)} • Stock deducted: ${o.manual_stock_deducted?'Yes':'No'}</small><br><small>Reference: ${Store.esc(o.payment_transaction_id||'—')}</small>` : ''}
               ${o.paypal_order_id ? `<br><small>PayPal Order: <code>${Store.esc(o.paypal_order_id)}</code></small>` : ''}
               ${o.paypal_capture_id ? `<br><small>Capture: <code>${Store.esc(o.paypal_capture_id)}</code></small>` : ''}
               ${o.paypal_payment_source ? `<br><small><strong>Payment Source:</strong> ${
@@ -1342,6 +1395,7 @@ window.Admin = {
       ${this.pager(page, pages, total, 'orders')}
     `;
 
+    document.getElementById('new-manual-order').onclick = () => this.manualOrder();
     document.getElementById('toggle-deleted-orders').onclick = () => this.orders(!showDeleted,1);
     document.querySelector('.page-prev')?.addEventListener('click', () => this.orders(showDeleted,page-1));
     document.querySelector('.page-next')?.addEventListener('click', () => this.orders(showDeleted,page+1));
@@ -3621,9 +3675,9 @@ window.Admin = {
       const headers = [
         'id','title','title_ar','description','description_ar',
         'price_usd','discounted_price_usd','stock_quantity','status',
-        'paypal_link','category_id','type_id','sort_order','active','operation_guide_id'
+        'paypal_link','category_id','category_ids','type_id','sort_order','active','operation_guide_id'
       ];
-      this.downloadCsv(`listed_items_export_${new Date().toISOString().slice(0,10)}.csv`, headers, data||[]);
+      this.downloadCsv(`listed_items_export_${new Date().toISOString().slice(0,10)}.csv`, headers, (data||[]).map(p=>({...p,category_ids:(p.category_ids||[]).join(';')})));
       Store.alert('Listed Items CSV exported.');
     };
 
@@ -3660,6 +3714,7 @@ window.Admin = {
           ...(Object.hasOwn(row,'operation_guide_id')?{operation_guide_id:row.operation_guide_id||null}:{}),
           paypal_link: row.paypal_link || null,
           category_id: row.category_id || null,
+          ...(Object.hasOwn(row,'category_ids') ? {category_ids:String(row.category_ids||'').split(';').map(x=>x.trim()).filter(Boolean)} : {}),
           type_id: row.type_id || null,
           sort_order: Number(row.sort_order||999999),
           active: !['0','false','no'].includes(String(row.active||'true').toLowerCase())

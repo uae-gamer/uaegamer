@@ -358,9 +358,10 @@ window.Products = {
       ? t('coming')
       : (!canBuy ? t('out') : t('inStock'));
 
-    const category = Store.state.lang === 'ar'
-      ? String(p.category_name_ar || '')
-      : String(p.category_name || '');
+    const categories = (p.category_ids || (p.category_id?[p.category_id]:[]))
+      .map(id => (Store.state.categories||[]).find(c=>c.id===id)).filter(Boolean)
+      .map(c => Store.state.lang==='ar' ? (c.name_ar||c.name) : c.name);
+    const category = categories.length > 0;
 
     const type = Store.state.lang === 'ar'
       ? String(p.type_name_ar || '')
@@ -414,7 +415,7 @@ window.Products = {
 
           ${(category || type) ? `
             <div class="product-meta-row">
-              ${category ? `<span class="product-pill meta-pill">${Store.esc(category)}</span>` : ''}
+              ${categories.map(name=>`<span class="product-pill meta-pill">${Store.esc(name)}</span>`).join('')}
               ${type ? `<span class="product-pill meta-pill">${Store.esc(type)}</span>` : ''}
             </div>
           ` : ''}

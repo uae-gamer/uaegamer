@@ -31,11 +31,12 @@ window.ProductPage = {
     this.images = images || [];
 
     const [categoryRes,typeRes] = await Promise.all([
-      product.category_id ? db.from('categories').select('*').eq('id',product.category_id).maybeSingle() : Promise.resolve({data:null}),
+      (product.category_ids||[]).length ? db.from('categories').select('*').in('id',product.category_ids).order('sort_order') : Promise.resolve({data:[]}),
       product.type_id ? db.from('product_types').select('*').eq('id',product.type_id).maybeSingle() : Promise.resolve({data:null})
     ]);
 
-    product.category = categoryRes.data || null;
+    if(categoryRes.error) throw categoryRes.error;
+    product.categories = categoryRes.data || [];
     product.type = typeRes.data || null;
 
     this.render();
@@ -86,7 +87,7 @@ window.ProductPage = {
           <h1>${PublicSite.esc(title)}</h1>
           <div class="description product-long-description">${PublicSite.esc(description)}</div>
 
-          ${p.category ? `<p><strong>${PublicSite.ui('Category','التصنيف')}:</strong> ${PublicSite.esc(PublicSite.localized(p.category,'name'))}</p>` : ''}
+          ${p.categories.length ? `<p><strong>${PublicSite.ui('Categories','التصنيفات')}:</strong> ${p.categories.map(c=>PublicSite.esc(PublicSite.localized(c,'name'))).join(' · ')}</p>` : ''}
           ${p.type ? `<p><strong>${PublicSite.ui('Type','النوع')}:</strong> ${PublicSite.esc(PublicSite.localized(p.type,'name'))}</p>` : ''}
 
           <div class="price product-detail-price">
