@@ -6,27 +6,20 @@ window.VantaBackground = {
     if (this.loadedScripts.has(src)) return this.loadedScripts.get(src);
 
     const promise = new Promise((resolve, reject) => {
-      const existing = document.querySelector(`script[src="${src}"]`);
-      if (existing) {
-        if (existing.dataset.loaded === '1') return resolve();
-        existing.addEventListener('load', resolve, { once:true });
-        existing.addEventListener('error', reject, { once:true });
-        return;
-      }
-
-      const script = document.createElement('script');
-      script.src = src;
-      script.async = true;
-      script.onload = () => {
-        script.dataset.loaded = '1';
-        resolve();
-      };
-      script.onerror = () => reject(new Error(`Unable to load ${src}`));
-      document.head.appendChild(script);
+      let script = document.querySelector(`script[src="${src}"]`);
+      if (script?.dataset.loaded === '1') return resolve();
+      const isNew = !script;
+      if (!script) {script=document.createElement('script');script.src=src;script.async=true;}
+      const cleanup=()=>{clearTimeout(timer);script.removeEventListener('load',loaded);script.removeEventListener('error',failed);};
+      const loaded=()=>{cleanup();script.dataset.loaded='1';resolve();};
+      const failed=()=>{cleanup();script.remove();reject(new Error(`Unable to load ${src}`));};
+      const timer=setTimeout(failed,15000);
+      script.addEventListener('load',loaded,{once:true});script.addEventListener('error',failed,{once:true});
+      if(isNew)document.head.appendChild(script);
     });
-
-    this.loadedScripts.set(src, promise);
-    return promise;
+    const retryable=promise.catch(error=>{this.loadedScripts.delete(src);throw error;});
+    this.loadedScripts.set(src,retryable);
+    return retryable;
   },
 
   ensureHost() {
@@ -41,6 +34,8 @@ window.VantaBackground = {
   },
 
   destroy() {
+    this.generation=(this.generation||0)+1;
+    this.activeKey=null;
     if (this.effect?.destroy) {
       try { this.effect.destroy(); } catch (_) {}
     }
@@ -89,37 +84,43 @@ window.VantaBackground = {
   },
 
   async apply(settings) {
-    const s = settings || {};
-    const enabled = s.vanta_enabled === true;
-    const isMobile = window.matchMedia('(max-width: 768px)').matches;
-    const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-    if (!enabled || (isMobile && s.vanta_mobile_enabled !== true) || reduceMotion) {
-      this.destroy();
-      return;
+    const s = {...(settings || {})};
+    this.settings=s;
+    if(!this.listenersInstalled){
+      this.listenersInstalled=true;
+      const refresh=()=>this.apply(this.settings).catch(error=>console.error('Vanta background failed:',error));
+      for(const query of ['(max-width: 768px)','(prefers-reduced-motion: reduce)']){
+        const media=window.matchMedia(query);
+        if(media.addEventListener)media.addEventListener('change',refresh);
+        else media.addListener?.(refresh);
+      }
     }
-
-    const effectName = ['waves','birds','clouds','fog','net','cells','dots'].includes(s.vanta_effect)
-      ? s.vanta_effect
-      : 'waves';
-
+    const isMobile=window.matchMedia('(max-width: 768px)').matches;
+    const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    if(s.vanta_enabled!==true || (isMobile && s.vanta_mobile_enabled!==true) || reduceMotion){this.destroy();return;}
+    const effectName=['waves','birds','clouds','fog','net','cells','dots'].includes(s.vanta_effect)?s.vanta_effect:'waves';
+    const key=JSON.stringify([effectName,...Object.keys(s).filter(k=>k.startsWith('vanta_')).sort().map(k=>[k,s[k]])]);
+    if(this.effect && key===this.activeKey){this.effect.resize?.();return;}
     this.destroy();
-    const host = this.ensureHost();
-
-    await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js');
-    await this.loadScript(`https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.${effectName}.min.js`);
-
-    const factoryName = effectName.toUpperCase();
-    const factory = window.VANTA?.[factoryName];
-
-    if (typeof factory !== 'function') {
-      throw new Error(`Vanta effect ${effectName} is unavailable.`);
+    const generation=this.generation;
+    const host=this.ensureHost();
+    try {
+      if(!window.THREE)await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js');
+      if(generation!==this.generation)return;
+      if(!window.VANTA?.[effectName.toUpperCase()])await this.loadScript(`https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.${effectName}.min.js`);
+      if(generation!==this.generation)return;
+      const factory=window.VANTA?.[effectName.toUpperCase()];
+      if(typeof factory!=='function')throw new Error(`Vanta effect ${effectName} is unavailable.`);
+      this.effect=factory({...this.optionsFor(effectName,s,host),THREE:window.THREE});
+      const canvas=host.querySelector('canvas');
+      if(!canvas || !this.effect)throw new Error('WebGL background could not initialize.');
+      canvas.style.pointerEvents='none';
+      canvas.addEventListener('webglcontextlost',()=>{if(generation===this.generation)this.destroy();},{once:true});
+      this.activeKey=key;
+      document.body.classList.add('vanta-active');
+    } catch(error) {
+      if(generation===this.generation)this.destroy();
+      throw error;
     }
-
-    this.effect = factory(this.optionsFor(effectName, s, host));
-    document.body.classList.add('vanta-active');
-
-    const canvas = host.querySelector('canvas');
-    if (canvas) canvas.style.pointerEvents = 'none';
   }
 };

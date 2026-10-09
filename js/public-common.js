@@ -166,6 +166,7 @@ window.PublicSite = {
 
     // Load configured Google fonts on standalone/public pages too.
     FontLoader?.apply?.(s, this.state.lang);
+    window.VantaBackground?.apply(s).catch(error=>console.error('Vanta background failed:',error));
 
     const name = this.localized(s,'site_name') || 'UAEGamer';
     const description = this.localized(s,'site_description') || '';

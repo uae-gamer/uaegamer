@@ -49,10 +49,13 @@ window.Products = {
   async loadImagesForProducts(products) {
     const ids = (products || []).map(p => p.id).filter(Boolean);
     if (!ids.length) return;
-    const guideRefs = await db.from('products').select('id,operation_guide_id,operation_guides(id,enabled)').in('id',ids);
-    if (guideRefs.error) console.error('Guide lookup failed:',guideRefs.error);
-    const guides = new Map((guideRefs.data||[]).filter(x=>x.operation_guides?.enabled).map(x=>[x.id,x.operation_guide_id]));
-    products.forEach(p=>{p.operation_guide_id=guides.get(p.id)||null;});
+    const guideIds = [...new Set(products.map(p=>p.operation_guide_id).filter(Boolean))];
+    if (guideIds.length) {
+      const guideRefs = await db.from('operation_guides').select('id').in('id',guideIds).eq('enabled',true);
+      if (guideRefs.error) console.error('Guide lookup failed:',guideRefs.error);
+      const published = new Set((guideRefs.data||[]).map(g=>g.id));
+      products.forEach(p=>{if(!published.has(p.operation_guide_id))p.operation_guide_id=null;});
+    }
 
     const result = await Store.withTimeout(
       db.from('product_images')
@@ -417,7 +420,8 @@ window.Products = {
 
           ${(category || type) ? `
             <div class="product-meta-row">
-              ${categories.map(name=>`<span class="product-pill meta-pill">${Store.esc(name)}</span>`).join('')}
+              ${categories.slice(0,5).map(name=>`<span class="product-pill meta-pill">${Store.esc(name)}</span>`).join('')}
+              ${categories.length>5?`<span class="product-pill meta-pill category-overflow" aria-label="${Store.state.lang==='ar'?'تصنيفات إضافية':'More categories'}: ${categories.length-5}">+${categories.length-5}</span>`:''}
               ${type ? `<span class="product-pill meta-pill">${Store.esc(type)}</span>` : ''}
             </div>
           ` : ''}
@@ -452,7 +456,12 @@ window.Products = {
       const visibleCount = overflow ? capacity - 1 : thumbnails.length;
       thumbnails.forEach((thumbnail, index) => { thumbnail.hidden = index >= visibleCount; });
       more.hidden = !overflow;
-      if (overflow) more.querySelector('img').src = thumbnails[visibleCount].dataset.imageUrl;
+      if (overflow) {
+        more.querySelector('img').src = thumbnails[visibleCount].dataset.imageUrl;
+        const remaining = thumbnails.length-visibleCount;
+        more.querySelector('.thumbnail-more-overlay').textContent = `+${remaining}`;
+        more.setAttribute('aria-label',Store.state.lang==='ar' ? `عرض ${remaining} صور إضافية في صفحة المنتج` : `View ${remaining} more images on the product page`);
+      }
     };
     const rows = [...document.querySelectorAll('.modern-product-card .product-thumbnails')];
     rows.forEach(fitThumbnails);
