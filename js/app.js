@@ -290,6 +290,16 @@ window.Store = {
     this.applyBasicUI();
 
     const s = this.state.settings || {};
+    for(const [key,css] of [['details_button_color','details'],['guide_button_color','guide']]) {
+      const color=s[key];const valid=/^#[0-9a-f]{6}$/i.test(String(color||''));
+      document.documentElement.classList.toggle(`custom-${css}-color`,valid);
+      if(valid){
+        const rgb=[1,3,5].map(i=>parseInt(color.slice(i,i+2),16)/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4);
+        const luminance=rgb[0]*.2126+rgb[1]*.7152+rgb[2]*.0722;
+        document.documentElement.style.setProperty(`--${css}-button-color`,color);
+        document.documentElement.style.setProperty(`--${css}-button-text`,luminance>.179?'#111111':'#ffffff');
+      }
+    }
     const visualTheme = s.visual_theme || (s.retro_theme_enabled === true ? 'retro' : 'basic');
     document.documentElement.classList.toggle('retro-controller-theme', visualTheme === 'retro');
     document.documentElement.classList.toggle('uae-flag-theme', visualTheme === 'uae');

@@ -1,5 +1,6 @@
 window.VantaBackground = {
   effect: null,
+  status: 'Not started.',
   loadedScripts: new Map(),
 
   loadScript(src) {
@@ -58,6 +59,7 @@ window.VantaBackground = {
       mouseControls: settings.vanta_mouse_controls !== false,
       touchControls: settings.vanta_touch_controls !== false,
       gyroControls: false,
+      forceAnimate: true,
       minHeight: 200,
       minWidth: 200,
       scale: 1.0,
@@ -97,29 +99,31 @@ window.VantaBackground = {
     }
     const isMobile=window.matchMedia('(max-width: 768px)').matches;
     const reduceMotion=window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-    if(s.vanta_enabled!==true || (isMobile && s.vanta_mobile_enabled!==true) || reduceMotion){this.destroy();return;}
+    if(s.vanta_enabled!==true || (isMobile && s.vanta_mobile_enabled!==true) || reduceMotion){this.destroy();this.status=s.vanta_enabled!==true?'Disabled in saved site settings.':reduceMotion?'Disabled because this device requests reduced motion.':'Disabled at this screen width: enable the Mobile option to allow it.';return;}
     const effectName=['waves','birds','clouds','fog','net','cells','dots'].includes(s.vanta_effect)?s.vanta_effect:'waves';
     const key=JSON.stringify([effectName,...Object.keys(s).filter(k=>k.startsWith('vanta_')).sort().map(k=>[k,s[k]])]);
     if(this.effect && key===this.activeKey){this.effect.resize?.();return;}
     this.destroy();
     const generation=this.generation;
     const host=this.ensureHost();
+    this.status='Loading background libraries…';
     try {
-      if(!window.THREE)await this.loadScript('https://cdnjs.cloudflare.com/ajax/libs/three.js/r134/three.min.js');
+      if(!window.THREE)await this.loadScript('./js/vendor/vanta/three.r134.min.js');
       if(generation!==this.generation)return;
-      if(!window.VANTA?.[effectName.toUpperCase()])await this.loadScript(`https://cdn.jsdelivr.net/npm/vanta@0.5.24/dist/vanta.${effectName}.min.js`);
+      if(!window.VANTA?.[effectName.toUpperCase()])await this.loadScript(`./js/vendor/vanta/vanta.${effectName}.min.js`);
       if(generation!==this.generation)return;
       const factory=window.VANTA?.[effectName.toUpperCase()];
       if(typeof factory!=='function')throw new Error(`Vanta effect ${effectName} is unavailable.`);
       this.effect=factory({...this.optionsFor(effectName,s,host),THREE:window.THREE});
       const canvas=host.querySelector('canvas');
-      if(!canvas || !this.effect)throw new Error('WebGL background could not initialize.');
+      if(!canvas || !this.effect?.renderer)throw new Error('WebGL could not initialize. Check browser hardware acceleration/WebGL support.');
       canvas.style.pointerEvents='none';
-      canvas.addEventListener('webglcontextlost',()=>{if(generation===this.generation)this.destroy();},{once:true});
+      canvas.addEventListener('webglcontextlost',()=>{if(generation===this.generation){this.destroy();this.status='WebGL context lost. Reload or use Check / Restart Background.';}},{once:true});
+      this.status=`Running: ${effectName}. If hidden, check that js/vendor/vanta files and the latest CSS are uploaded.`;
       this.activeKey=key;
       document.body.classList.add('vanta-active');
     } catch(error) {
-      if(generation===this.generation)this.destroy();
+      if(generation===this.generation){this.destroy();this.status=`Background failed: ${error.message||error}`;}
       throw error;
     }
   }

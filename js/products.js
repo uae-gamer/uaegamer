@@ -421,7 +421,7 @@ window.Products = {
           ${(category || type) ? `
             <div class="product-meta-row">
               ${categories.slice(0,5).map(name=>`<span class="product-pill meta-pill">${Store.esc(name)}</span>`).join('')}
-              ${categories.length>5?`<span class="product-pill meta-pill category-overflow" aria-label="${Store.state.lang==='ar'?'تصنيفات إضافية':'More categories'}: ${categories.length-5}">+${categories.length-5}</span>`:''}
+              ${categories.length>5?`<span class="product-pill meta-pill category-overflow" aria-label="${Store.state.lang==='ar'?'تصنيفات إضافية':'More categories'}: ${categories.length-5}">+${categories.length-5} ${Store.state.lang==='ar'?'أنظمة إضافية':'More Systems'}</span>`:''}
               ${type ? `<span class="product-pill meta-pill">${Store.esc(type)}</span>` : ''}
             </div>
           ` : ''}

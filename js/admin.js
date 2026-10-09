@@ -2661,6 +2661,9 @@ window.Admin = {
         </div>
 
         <h3>Home and Catalog</h3>
+        <div class="bilingual">
+          ${[['details_button_color','View Details','#4b5563'],['guide_button_color','Operation Guide','#26395a']].map(([key,label,fallback])=>`<div class="form-group"><label><input type="checkbox" name="use_${key}" style="width:auto" ${data[key]?'checked':''}> Custom ${label} button color</label><input type="color" name="${key}" value="${Store.escAttr(data[key]||fallback)}"><small class="muted">Uncheck to use the theme color. Text contrast is automatic; applies in light and dark modes.</small></div>`).join('')}
+        </div>
         <div class="form-group">
           <label for="catalog-desktop-columns">Listed items per row on desktop</label>
           <select id="catalog-desktop-columns" name="catalog_desktop_columns">
@@ -2919,6 +2922,7 @@ window.Admin = {
         </div>
 
         <h3>Animated Background</h3>
+        <div class="card"><button type="button" id="vanta-diagnose" class="btn secondary">Check / Restart Background</button><p id="vanta-diagnostic" class="muted" aria-live="polite">Check the saved background settings on this browser.</p></div>
         <p class="muted">
           Optional Vanta.js WebGL background. Vanta and Three.js are loaded only when this feature is enabled.
           Devices requesting reduced motion will not run the animation.
@@ -3046,6 +3050,13 @@ window.Admin = {
       </form>
     `;
 
+    document.getElementById('vanta-diagnose').onclick=async()=>{
+      const output=document.getElementById('vanta-diagnostic');
+      output.textContent='Checking saved settings…';
+      try {window.VantaBackground.destroy();await window.VantaBackground.apply(Store.state.settings);}
+      catch(error){console.error(error);}
+      output.textContent=window.VantaBackground.status||'Background has not initialized.';
+    };
     const settingsSectionKeys = {
       general: new Set(['site_name','site_name_ar','site_description','site_description_ar','default_language']),
       branding: new Set([
@@ -3055,7 +3066,7 @@ window.Admin = {
         'gradient_color_1','gradient_color_2','gradient_color_3','gradient_color_4','gradient_color_5',
         'favicon_upload','remove_favicon'
       ]),
-      catalog: new Set(['show_sort_items_per_page','catalog_desktop_columns']),
+      catalog: new Set(['show_sort_items_per_page','catalog_desktop_columns','details_button_color','guide_button_color']),
       features: new Set(['show_stats','show_notification_button','maintenance_mode','maintenance_message','maintenance_message_ar']),
       email: new Set([
         'require_verified_email_for_checkout','require_verification_for_email_change',
@@ -3485,6 +3496,8 @@ window.Admin = {
       payload.allow_guest_checkout = fd.has('allow_guest_checkout');
       payload.show_sort_items_per_page = fd.has('show_sort_items_per_page');
       payload.catalog_desktop_columns = Number(fd.get('catalog_desktop_columns'))===2 ? 2 : 4;
+
+      for(const key of ['details_button_color','guide_button_color'])payload[key]=fd.has(`use_${key}`)?String(fd.get(key)||''):null;
 
       const allowedKeys = settingsSectionKeys[settingsSection] || settingsSectionKeys.general;
       for (const key of Object.keys(payload)) {
