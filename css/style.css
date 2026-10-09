@@ -1090,3 +1090,7 @@ html.uae-flag-theme[data-theme="dark"] body{
 /* Step 37.12: catalog button typography and optional desktop columns. */
 html body .modern-product-card .product-actions .btn{font-size:1.25rem!important;white-space:normal;overflow-wrap:anywhere;min-width:0}
 @media(min-width:801px){.products.catalog-two-columns{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Step 37.14: compact overflow counts. */
+.modern-product-card .thumbnail-more-overlay{font-size:clamp(11px,1rem,17px);padding:2px;font-variant-numeric:tabular-nums;letter-spacing:-.5px;direction:ltr;white-space:nowrap}
+.category-overflow{direction:ltr;white-space:nowrap}
