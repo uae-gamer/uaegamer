@@ -1094,3 +1094,12 @@ html body .modern-product-card .product-actions .btn{font-size:1.25rem!important
 /* Step 37.14: compact overflow counts. */
 .modern-product-card .thumbnail-more-overlay{font-size:clamp(11px,1rem,17px);padding:2px;font-variant-numeric:tabular-nums;letter-spacing:-.5px;direction:ltr;white-space:nowrap}
 .category-overflow{direction:ltr;white-space:nowrap}
+
+/* Step 37.15: independently configurable detail/guide buttons. */
+html body .btn.product-details-link,html body .btn.operation-guide-button{font-weight:400!important}
+html.custom-details-color body .btn.product-details-link{background:var(--details-button-color);border-color:var(--details-button-color);color:var(--details-button-text)}
+html.custom-guide-color body .btn.operation-guide-button{background:var(--guide-button-color);border-color:var(--guide-button-color);color:var(--guide-button-text)}
+html.custom-details-color body .btn.product-details-link:hover,html.custom-details-color body .btn.product-details-link:active{background:var(--details-button-color);border-color:var(--details-button-color);color:var(--details-button-text);filter:brightness(.9)}
+html.custom-guide-color body .btn.operation-guide-button:hover,html.custom-guide-color body .btn.operation-guide-button:active{background:var(--guide-button-color);border-color:var(--guide-button-color);color:var(--guide-button-text);filter:brightness(.9)}
+/* Vanta writes inline positioning; the site background must remain viewport-fixed. */
+#vanta-background{position:fixed!important;inset:0!important;width:100%!important;height:100vh!important;height:100dvh!important}
