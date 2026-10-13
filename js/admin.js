@@ -2662,7 +2662,7 @@ window.Admin = {
 
         <h3>Home and Catalog</h3>
         <div class="bilingual">
-          ${[['details_button_color','View Details','#4b5563'],['guide_button_color','Operation Guide','#26395a']].map(([key,label,fallback])=>`<div class="form-group"><label><input type="checkbox" name="use_${key}" style="width:auto" ${data[key]?'checked':''}> Custom ${label} button color</label><input type="color" name="${key}" value="${Store.escAttr(data[key]||fallback)}"><small class="muted">Uncheck to use the theme color. Text contrast is automatic; applies in light and dark modes.</small></div>`).join('')}
+          ${[['details_button_color','View Details','#4b5563'],['guide_button_color','Operation Guide','#26395a']].map(([key,label,fallback])=>`<div class="form-group"><label><input type="checkbox" name="use_${key}" style="width:auto" ${data[key]?'checked':''}> Custom ${label} button color</label><input type="color" name="${key}" value="${Store.escAttr(data[key]||fallback)}"><small class="muted">Choosing a color enables it automatically. Uncheck to restore the theme color, then save Home and Catalog. Text contrast is automatic.</small></div>`).join('')}
         </div>
         <div class="form-group">
           <label for="catalog-desktop-columns">Listed items per row on desktop</label>
@@ -3057,6 +3057,14 @@ window.Admin = {
       catch(error){console.error(error);}
       output.textContent=window.VantaBackground.status||'Background has not initialized.';
     };
+    // Choosing a custom color enables it; users can still explicitly restore theme defaults.
+    for(const key of ['details_button_color','guide_button_color']){
+      const picker=document.querySelector(`[name="${key}"]`);
+      const enabled=document.querySelector(`[name="use_${key}"]`);
+      const enable=()=>{enabled.checked=true;};
+      picker.addEventListener('input',enable);
+      picker.addEventListener('change',enable);
+    }
     const settingsSectionKeys = {
       general: new Set(['site_name','site_name_ar','site_description','site_description_ar','default_language']),
       branding: new Set([

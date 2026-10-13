@@ -661,7 +661,7 @@ window.Store = {
 
       const script = document.createElement('script');
       script.id = 'uaegamer-admin-module';
-      script.src = './js/admin.js';
+      script.src = './js/admin.js?v=37.16';
       script.async = true;
       script.onload = () => {
         if (window.Admin) resolve(window.Admin);
