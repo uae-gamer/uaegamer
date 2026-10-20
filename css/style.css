@@ -1096,7 +1096,8 @@ html body .modern-product-card .product-actions .btn{font-size:1.25rem!important
 .category-overflow{direction:ltr;white-space:nowrap}
 
 /* Step 37.15: independently configurable detail/guide buttons. */
-html body .btn.product-details-link,html body .btn.operation-guide-button{font-weight:400!important}
+html body .btn.product-details-link{font-weight:var(--details-button-font-weight,400)!important}
+html body .btn.operation-guide-button{font-weight:var(--guide-button-font-weight,400)!important}
 html.custom-details-color body .btn.product-details-link{background:var(--details-button-color);border-color:var(--details-button-color);color:var(--details-button-text)}
 html.custom-guide-color body .btn.operation-guide-button{background:var(--guide-button-color);border-color:var(--guide-button-color);color:var(--guide-button-text)}
 html.custom-details-color body .btn.product-details-link:hover,html.custom-details-color body .btn.product-details-link:active{background:var(--details-button-color);border-color:var(--details-button-color);color:var(--details-button-text);filter:brightness(.9)}
