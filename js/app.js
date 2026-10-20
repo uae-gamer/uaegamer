@@ -290,6 +290,10 @@ window.Store = {
     this.applyBasicUI();
 
     const s = this.state.settings || {};
+    for (const button of ['details', 'guide']) {
+      const weight = Number(s[`${button}_button_font_weight`]) === 700 ? '700' : '400';
+      document.documentElement.style.setProperty(`--${button}-button-font-weight`, weight);
+    }
     for(const [key,css] of [['details_button_color','details'],['guide_button_color','guide']]) {
       const color=s[key];const valid=/^#[0-9a-f]{6}$/i.test(String(color||''));
       document.documentElement.classList.toggle(`custom-${css}-color`,valid);
@@ -661,7 +665,7 @@ window.Store = {
 
       const script = document.createElement('script');
       script.id = 'uaegamer-admin-module';
-      script.src = './js/admin.js?v=37.16';
+      script.src = './js/admin.js?v=37.17';
       script.async = true;
       script.onload = () => {
         if (window.Admin) resolve(window.Admin);

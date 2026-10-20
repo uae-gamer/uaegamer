@@ -139,6 +139,10 @@ window.PublicSite = {
 
   applyAppearance() {
     const s = this.state.settings || {};
+    for (const button of ['details', 'guide']) {
+      const weight = Number(s[`${button}_button_font_weight`]) === 700 ? '700' : '400';
+      document.documentElement.style.setProperty(`--${button}-button-font-weight`, weight);
+    }
     for(const [key,css] of [['details_button_color','details'],['guide_button_color','guide']]) {
       const color=s[key];const valid=/^#[0-9a-f]{6}$/i.test(String(color||''));
       document.documentElement.classList.toggle(`custom-${css}-color`,valid);
