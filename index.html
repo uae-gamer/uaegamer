@@ -1,1 +1,84 @@
-<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex,nofollow"><title>ناشر | Nasher</title><script defer src="config.js"></script><script defer src="assets/vendor/supabase-2.49.8.js"></script><script defer src="plate.js?v=12"></script><script defer src="experience.js?v=12"></script><script defer src="commerce.js?v=11"></script><script defer src="market.js?v=12"></script><script src="theme-init.js?v=12"></script><script defer src="ui.js?v=12"></script><link rel="stylesheet" href="app.css?v=12"></head><body><header><a class="brand" href="./"><strong>ناشر<span class="dot">.</span></strong><span>NASHER</span></a><nav class="market-nav"><a href="index.html" data-t="browse">تصفح اللوحات</a><a href="my-ads.html" data-t="myAds">إعلاناتي</a><a href="account.html" data-t="account">حسابي</a><a href="admin.html" id="admin-nav" hidden data-t="admin">الإدارة</a><a class="post-link" href="post.html" data-t="post">أضف إعلاناً</a></nav><div class="actions"><button id="language">English</button><button id="theme" data-t="theme">المظهر</button></div></header><main><p class="draft-note" data-t="development">نسخة تطوير · البريد والهاتف غير متحقق منهما</p><p id="message" class="status-message" role="status" aria-live="polite"></p><section id="browse-page"><div class="market-top"><div><div class="eyebrow" data-t="eyebrow">الإمارات العربية المتحدة / أبوظبي</div><h1 data-t="headline">لوحة تليق بك.</h1><p data-t="subtitle">تواصل مباشرة مع البائع. البيع ونقل الملكية يتمان خارج ناشر.</p></div></div><form id="filters" class="filters"><label><span data-t="displayFilter"></span><select id="filter-status"><option value="all" data-t="all"></option><option value="available" data-t="available"></option><option value="sold" data-t="sold"></option></select></label><label><span data-t="emirate">الإمارة</span><select id="filter-emirate"><option value="" data-t="all">الكل</option><option value="abu_dhabi" data-t="abuDhabi">أبوظبي</option><option value="dubai" data-t="dubai">دبي</option><option value="umm_al_quwain" data-t="umm_al_quwain">أم القيوين</option><option value="fujairah" data-t="fujairah">الفجيرة</option><option value="ras_al_khaimah" data-t="ras_al_khaimah">رأس الخيمة</option><option value="sharjah" data-t="sharjah">الشارقة</option></select></label><label><span data-t="code">الرمز</span><select id="filter-code"><option value="" data-t="all">الكل</option></select></label><label><span data-t="numberSearch">رقم اللوحة (كامل أو جزء)</span><input id="filter-number" inputmode="numeric" pattern="[0-9]{1,5}" maxlength="5" dir="ltr"></label><label><span data-t="digits">عدد الأرقام</span><select id="filter-digits"><option value="" data-t="all">الكل</option><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option></select></label><label><span data-t="minPrice">أقل سعر (درهم)</span><input id="filter-min" type="number" min="0" max="9999999999.99" step=".01"></label><label><span data-t="maxPrice">أعلى سعر (درهم)</span><input id="filter-max" type="number" min="0" max="9999999999.99" step=".01"></label><label><span data-t="sort">الترتيب</span><select id="filter-sort"><option value="new" data-t="newest">الأحدث</option><option value="low" data-t="low">الأقل سعراً</option><option value="high" data-t="high">الأعلى سعراً</option></select></label><div class="actions"><button class="primary" data-t="search">بحث</button><button id="reset" type="button" data-t="reset">مسح</button></div></form><p class="draft-note" data-t="priceNote">فلتر السعر يستثني إعلانات «السعر عند الطلب». الإمارات الأخرى ستضاف لاحقاً.</p><div id="list" class="listing-grid"></div><div class="pager"><button id="prev" data-t="previous">السابق</button><span id="page-info"></span><button id="next" data-t="next">التالي</button></div></section></main><footer><span>ناشر / Nasher</span><span data-t="footer">لوحات أبوظبي ودبي والشارقة · المرحلة الخامسة</span></footer></body></html>
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
+  <meta name="description" content="UAEGamer">
+  <title>UAEGamer</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;600;700&family=Noto+Sans:wght@400;600;700&family=Noto+Sans+Arabic:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <script>
+  (function () {
+    try {
+      const cached = JSON.parse(localStorage.getItem('sf_cached_settings') || '{}');
+      const lang = localStorage.getItem('sf_lang') || (cached.default_language === 'ar' ? 'ar' : 'en');
+      const theme = localStorage.getItem('sf_theme') || 'light';
+
+      document.documentElement.lang = lang;
+      document.documentElement.dir = lang === 'ar' ? 'rtl' : 'ltr';
+      document.documentElement.dataset.theme = theme;
+
+      const root = document.documentElement.style;
+      if (cached.theme_color) root.setProperty('--primary', cached.theme_color);
+      if (cached.font_size) root.setProperty('--base-font-size', cached.font_size);
+
+      const bodyFont = lang === 'ar' ? cached.font_family_ar : cached.font_family;
+      const headerFont = lang === 'ar' ? cached.header_title_font_family_ar : cached.header_title_font_family;
+      if (bodyFont) root.setProperty('--body-font', bodyFont);
+      if (headerFont) root.setProperty('--header-font', headerFont);
+    } catch (_) {}
+  })();
+  </script>
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+<header>
+  <div class="shell">
+    <div id="brand" class="brand"><h1 id="site-title"></h1></div>
+    <p id="site-subtitle" class="subtitle"></p>
+    <div class="toolbar">
+      <div><button class="mini active" data-lang="en">English</button><button class="mini" data-lang="ar">العربية</button></div>
+      <div class="notify-wrap">
+        <button id="notify-btn" class="mini hidden">Notifications <span id="notify-badge" class="badge hidden">0</span></button>
+        <div id="notify-panel" class="notify-panel hidden"><div class="panel-head"><strong data-i18n="notifications">Notifications</strong><button id="notify-close" class="xbtn">×</button></div><div id="notify-list"></div></div>
+      </div>
+      <div><button class="mini active" data-theme="light">Light</button><button class="mini" data-theme="dark">Dark</button></div>
+    </div>
+  </div>
+</header>
+
+<main class="shell">
+  <nav id="main-nav" class="main-nav"></nav>
+  <div id="alert-host"></div>
+  <div id="toast-host" class="toast-host" aria-live="polite"></div>
+  <section id="view"></section>
+</main>
+
+<footer class="footer footer-area">
+  <div class="shell footer-panel">
+    <div id="footer-links" class="footer-links"></div>
+    <div id="social-links" class="social-links"></div>
+  </div>
+  <p id="powered-by" class="footer-disclaimer">Powered by Supabase – Hosted on GitHub Pages</p>
+  <p class="footer-disclaimer">© <span id="year"></span> <span id="footer-name"></span>. <span data-i18n="rights">All rights reserved.</span></p>
+</footer>
+
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-box"><button id="modal-close" class="modal-close">×</button><div id="modal-body"></div></div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./js/config.js"></script>
+<script src="./js/supabase.js"></script>
+<script src="./js/font-loader.js"></script>
+<script src="./js/included-categories.js"></script>
+<script src="./js/vanta-background.js"></script>
+<script src="./js/i18n.js"></script>
+<script src="./js/auth.js"></script>
+<script src="./js/products.js"></script>
+<script src="./js/cart.js"></script>
+<script src="./js/app.js"></script>
+</body>
+</html>

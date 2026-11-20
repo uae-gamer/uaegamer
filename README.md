@@ -1,4 +1,12 @@
-# UAEGamer Step 37.9.1
+# UAEGamer Step 37.10
+
+Reusable Operation Guides, categorized Included Content, consistent header colors and a more transparent thumbnail overlay. Follow `STEP37-10-DEPLOY.md`; run `STEP37-10-SQL.sql` before uploading the eight changed frontend files.
+
+# UAEGamer Step 37.9.3
+
+Product gallery slider, Arabic gallery navigation, theme-colored plus overlay, and measured text-bar speed and looping. See `STEP37-9-3-CHANGES.md` for the three files required for this update.
+
+Single-row thumbnail preview with a plus overlay linking to the product gallery. See `STEP37-9-2-CHANGES.md`.
 
 Maintenance screen and wrapping-thumbnail refinements. See `STEP37-9-1-CHANGES.md`. If coming from Step 37.8.1, also follow `STEP37-9-DEPLOY.md` and run `STEP37-9-SQL.sql`.
 
